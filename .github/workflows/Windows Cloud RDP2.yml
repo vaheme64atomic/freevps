@@ -105,8 +105,7 @@ jobs:
           Write-Host "Username     : NvDAdmin" -ForegroundColor Cyan
           Write-Host "Password     : P@ssw0rd1qazXSW@#" -ForegroundColor Cyan
           Write-Host "============================================" -ForegroundColor Green
-    
-    
+          
       # ============================================================
       # 4. ENABLE WSL2
       # ============================================================
@@ -125,7 +124,7 @@ jobs:
             /all `
             /norestart
     
-          wsl --set-default-version 2
+          wsl.exe --set-default-version 2
     
           Write-Host "WSL2 features enabled." -ForegroundColor Green
     
@@ -133,54 +132,109 @@ jobs:
       # ============================================================
       # 5. INSTALL UBUNTU
       # ============================================================
-      - name: 5. Install Ubuntu WSL2
+      - name: 5. Install Ubuntu
         shell: powershell
         run: |
-          Write-Host "=== Installing Ubuntu ===" -ForegroundColor Cyan
+          Write-Host "=== Installing Ubuntu WSL2 ===" -ForegroundColor Cyan
     
-          $installed = wsl.exe --list --quiet 2>$null
+          $existing = @(wsl.exe --list --quiet 2>$null)
     
-          if ($installed -notmatch "Ubuntu") {
+          if ($existing -match "Ubuntu") {
     
-            Write-Host "Ubuntu not found. Installing..." -ForegroundColor Yellow
-    
-            wsl.exe --install -d Ubuntu --no-launch
-    
-            if ($LASTEXITCODE -ne 0) {
-              Write-Warning "Ubuntu installation returned exit code $LASTEXITCODE"
-            }
+            Write-Host "Ubuntu already exists." -ForegroundColor Green
     
           } else {
     
-            Write-Host "Ubuntu already installed." -ForegroundColor Green
+            Write-Host "Ubuntu not found. Installing from WSL..." -ForegroundColor Yellow
+    
+            wsl.exe --install --distribution Ubuntu --no-launch
+    
+            if ($LASTEXITCODE -ne 0) {
+    
+              Write-Warning "wsl --install returned exit code $LASTEXITCODE"
+    
+              Write-Host "Trying winget installation..." -ForegroundColor Yellow
+    
+              winget install `
+                --id Canonical.Ubuntu `
+                --exact `
+                --silent `
+                --accept-package-agreements `
+                --accept-source-agreements `
+                --disable-interactivity
+    
+              if ($LASTEXITCODE -ne 0) {
+                throw "Ubuntu installation failed."
+              }
+            }
           }
+    
+          Write-Host "Ubuntu installation command completed." -ForegroundColor Green
     
     
       # ============================================================
       # 6. VERIFY UBUNTU
       # ============================================================
-      - name: 6. Verify Ubuntu WSL2
+      - name: 6. Verify Ubuntu
         shell: powershell
         run: |
-          Write-Host "=== Checking WSL ===" -ForegroundColor Cyan
+          Write-Host "=== Verifying Ubuntu ===" -ForegroundColor Cyan
     
           wsl.exe --list --verbose
     
-          Write-Host ""
+          $distros = @(wsl.exe --list --quiet 2>$null)
     
-          $distros = wsl.exe --list --quiet
+          if (-not ($distros -match "Ubuntu")) {
     
-          if ($distros -notmatch "Ubuntu") {
-            throw "Ubuntu WSL distribution is not installed."
+            Write-Host ""
+            Write-Host "ERROR: Ubuntu is NOT installed." -ForegroundColor Red
+            Write-Host ""
+            wsl.exe --list --online
+            throw "Ubuntu WSL distribution was not installed."
           }
     
-          Write-Host "Ubuntu detected." -ForegroundColor Green
+          Write-Host "Ubuntu found." -ForegroundColor Green
     
     
       # ============================================================
-      # 7. INSTALL GIT
+      # 7. FORCE UBUNTU TO WSL2
       # ============================================================
-      - name: 7. Install Git
+      - name: 7. Set Ubuntu to WSL2
+        shell: powershell
+        run: |
+          Write-Host "=== Setting Ubuntu to WSL2 ===" -ForegroundColor Cyan
+    
+          wsl.exe --set-version Ubuntu 2
+    
+          wsl.exe --set-default Ubuntu
+    
+          wsl.exe --list --verbose
+    
+          Write-Host "Ubuntu configured for WSL2." -ForegroundColor Green
+    
+    
+      # ============================================================
+      # 8. INITIALIZE UBUNTU
+      # ============================================================
+      - name: 8. Initialize Ubuntu
+        shell: powershell
+        run: |
+          Write-Host "=== Initializing Ubuntu ===" -ForegroundColor Cyan
+    
+          # Check that Ubuntu can actually start
+          wsl.exe -d Ubuntu -- echo "Ubuntu WSL2 is working"
+    
+          if ($LASTEXITCODE -ne 0) {
+            throw "Ubuntu exists but could not be started."
+          }
+    
+          Write-Host "Ubuntu is running correctly." -ForegroundColor Green
+    
+    
+      # ============================================================
+      # 9. INSTALL GIT
+      # ============================================================
+      - name: 9. Install Git
         shell: powershell
         run: |
           Write-Host "=== Checking Git ===" -ForegroundColor Cyan
@@ -189,12 +243,10 @@ jobs:
     
           if ($git) {
     
-            Write-Host "Git already installed." -ForegroundColor Yellow
             git --version
+            Write-Host "Git already installed." -ForegroundColor Yellow
     
           } else {
-    
-            Write-Host "Installing Git..." -ForegroundColor Cyan
     
             winget install `
               --id Git.Git `
@@ -212,17 +264,17 @@ jobs:
             $env:Path = `
               [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" +
               [System.Environment]::GetEnvironmentVariable("Path", "User")
-          }
     
-          git --version
+            git --version
+          }
     
           Write-Host "Git READY." -ForegroundColor Green
     
     
       # ============================================================
-      # 8. INSTALL PYTHON
+      # 10. INSTALL PYTHON
       # ============================================================
-      - name: 8. Install Python
+      - name: 10. Install Python
         shell: powershell
         run: |
           Write-Host "=== Checking Python ===" -ForegroundColor Cyan
@@ -230,7 +282,6 @@ jobs:
           if (Get-Command python.exe -ErrorAction SilentlyContinue) {
     
             python --version
-            Write-Host "Python already available." -ForegroundColor Yellow
     
           } else {
     
@@ -251,9 +302,9 @@ jobs:
     
     
       # ============================================================
-      # 9. INSTALL NODE.JS
+      # 11. INSTALL NODE.JS
       # ============================================================
-      - name: 9. Install Node.js LTS
+      - name: 11. Install Node.js
         shell: powershell
         run: |
           Write-Host "=== Checking Node.js ===" -ForegroundColor Cyan
@@ -261,7 +312,6 @@ jobs:
           if (Get-Command node.exe -ErrorAction SilentlyContinue) {
     
             node --version
-            Write-Host "Node.js already available." -ForegroundColor Yellow
     
           } else {
     
@@ -282,80 +332,33 @@ jobs:
     
     
       # ============================================================
-      # 10. INSTALL VS CODE
-      # ============================================================
-      - name: 10. Install VS Code
-        shell: powershell
-        run: |
-          Write-Host "=== Checking VS Code ===" -ForegroundColor Cyan
-    
-          $code = Get-Command code.cmd -ErrorAction SilentlyContinue
-    
-          if ($code) {
-    
-            Write-Host "VS Code already installed." -ForegroundColor Yellow
-    
-          } else {
-    
-            winget install `
-              --id Microsoft.VisualStudioCode `
-              --exact `
-              --silent `
-              --accept-package-agreements `
-              --accept-source-agreements `
-              --disable-interactivity
-    
-            if ($LASTEXITCODE -ne 0) {
-              Write-Warning "VS Code installation returned $LASTEXITCODE"
-            }
-          }
-    
-          Write-Host "VS Code step completed." -ForegroundColor Green
-    
-    
-      # ============================================================
-      # 11. PERSIAN KEYBOARD
-      # ============================================================
-      - name: 11. Configure Persian Keyboard
-        shell: powershell
-        run: |
-          Write-Host "=== Configuring Persian Keyboard ===" -ForegroundColor Cyan
-    
-          try {
-    
-            $LanguageList = New-WinUserLanguageList -Language "en-US"
-    
-            if (-not ($LanguageList.LanguageTag -contains "fa-IR")) {
-              $LanguageList.Add("fa-IR")
-            }
-    
-            Set-WinUserLanguageList `
-              -LanguageList $LanguageList `
-              -Force
-    
-            Write-Host "Persian keyboard configured." -ForegroundColor Green
-    
-          }
-          catch {
-    
-            Write-Warning "Persian keyboard configuration failed."
-            Write-Warning $_.Exception.Message
-          }
-    
-    
-      # ============================================================
-      # 12. INSTALL DOCKER ENGINE INSIDE UBUNTU
+      # 12. INSTALL DOCKER ENGINE IN UBUNTU
       # ============================================================
       - name: 12. Install Docker Engine in Ubuntu
         shell: powershell
         run: |
           Write-Host "=== Installing Docker Engine inside Ubuntu ===" -ForegroundColor Cyan
     
+          # First, absolutely verify Ubuntu exists
+          $distros = @(wsl.exe --list --quiet 2>$null)
+    
+          if (-not ($distros -match "Ubuntu")) {
+            throw "Ubuntu is missing. Docker installation aborted."
+          }
+    
+          # Verify Ubuntu starts
+          wsl.exe -d Ubuntu -- echo "Ubuntu OK"
+    
+          if ($LASTEXITCODE -ne 0) {
+            throw "Ubuntu cannot be started. Docker installation aborted."
+          }
+    
+          # Docker installation script
           $dockerScript = @'
           set -e
     
           echo "=========================================="
-          echo "Installing Docker Engine"
+          echo " Docker Engine Installation"
           echo "=========================================="
     
           sudo apt-get update
@@ -392,10 +395,11 @@ jobs:
           sudo usermod -aG docker $USER
     
           echo ""
-          echo "Docker installation completed."
+          echo "Docker Engine installed."
           echo ""
-          docker --version || true
-          docker compose version || true
+    
+          docker --version
+          docker compose version
           '@
     
           $encoded = [Convert]::ToBase64String(
@@ -404,27 +408,42 @@ jobs:
     
           wsl.exe -d Ubuntu -- bash -c "echo $encoded | base64 -d > /tmp/install-docker.sh && chmod +x /tmp/install-docker.sh && /tmp/install-docker.sh"
     
-          Write-Host "Docker Engine installation completed." -ForegroundColor Green
+          if ($LASTEXITCODE -ne 0) {
+            throw "Docker installation failed inside Ubuntu."
+          }
+    
+          Write-Host "Docker Engine installed successfully." -ForegroundColor Green
     
     
       # ============================================================
       # 13. VERIFY DOCKER
       # ============================================================
-      - name: 13. Verify Docker Engine
+      - name: 13. Verify Docker
         shell: powershell
         run: |
-          Write-Host "=== Docker Verification ===" -ForegroundColor Cyan
+          Write-Host "=== Verifying Docker ===" -ForegroundColor Cyan
     
           wsl.exe -d Ubuntu -- bash -c "sudo service docker start"
     
           wsl.exe -d Ubuntu -- bash -c "docker --version"
     
+          if ($LASTEXITCODE -ne 0) {
+            throw "Docker CLI verification failed."
+          }
+    
           wsl.exe -d Ubuntu -- bash -c "docker compose version"
     
+          if ($LASTEXITCODE -ne 0) {
+            throw "Docker Compose verification failed."
+          }
+    
           Write-Host ""
-          Write-Host "Docker Engine inside Ubuntu is READY." -ForegroundColor Green
-    
-    
+          Write-Host "==========================================" -ForegroundColor Green
+          Write-Host " Docker Engine + Compose READY" -ForegroundColor Green
+          Write-Host "==========================================" -ForegroundColor Green
+
+
+       
       # ============================================================
       # 14. CREATE PROJECT DIRECTORIES
       # ============================================================
