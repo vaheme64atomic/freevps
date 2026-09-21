@@ -180,60 +180,62 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
       
-          Write-Host "=== Checking existing WSL distributions ==="
+          Write-Host "=== Current WSL distributions ==="
           wsl.exe --list --verbose
       
-          $ubuntuExists = wsl.exe --list --quiet 2>$null |
-            ForEach-Object { $_.Trim() } |
-            Where-Object { $_ -match "^Ubuntu($|[-0-9.])" }
+          # Check Ubuntu using the normal verbose WSL output
+          $wslList = (wsl.exe --list --verbose 2>&1 | Out-String)
       
-          if ($ubuntuExists) {
-              Write-Host "Ubuntu WSL distribution already exists."
-              exit 0
+          if ($wslList -match "Ubuntu") {
+              Write-Host "Ubuntu WSL distribution found."
           }
+          else {
+              Write-Host "Ubuntu not found. Installing Ubuntu..."
       
-          Write-Host "Ubuntu not found. Installing Ubuntu..."
-      
-          # Try the native WSL installation first
-          wsl.exe --install --distribution Ubuntu --no-launch
-      
-          Start-Sleep -Seconds 15
-      
-          Write-Host "=== Checking WSL distributions after installation attempt ==="
-          wsl.exe --list --verbose
-      
-          $ubuntuExists = wsl.exe --list --quiet 2>$null |
-            ForEach-Object { $_.Trim() } |
-            Where-Object { $_ -match "^Ubuntu($|[-0-9.])" }
-      
-          if (-not $ubuntuExists) {
-              Write-Host "Native WSL installation did not register Ubuntu."
-              Write-Host "Trying winget..."
-      
-              winget install `
-                --id Canonical.Ubuntu `
-                --exact `
-                --accept-source-agreements `
-                --accept-package-agreements `
-                --silent
+              wsl.exe --install --distribution Ubuntu --no-launch
       
               Start-Sleep -Seconds 20
+      
+              Write-Host "=== WSL distributions after installation ==="
+              wsl.exe --list --verbose
+      
+              $wslList = (wsl.exe --list --verbose 2>&1 | Out-String)
+      
+              if ($wslList -notmatch "Ubuntu") {
+                  Write-Host "Trying winget installation..."
+      
+                  winget install `
+                    --id Canonical.Ubuntu `
+                    --exact `
+                    --accept-source-agreements `
+                    --accept-package-agreements `
+                    --silent
+      
+                  Start-Sleep -Seconds 30
+      
+                  Write-Host "=== WSL distributions after winget ==="
+                  wsl.exe --list --verbose
+      
+                  $wslList = (wsl.exe --list --verbose 2>&1 | Out-String)
+              }
           }
       
-          Write-Host "=== Final Ubuntu check ==="
+          if ($wslList -notmatch "Ubuntu") {
+              throw "Ubuntu WSL distribution is not available."
+          }
+      
+          Write-Host "Ubuntu WSL distribution is available."
+      
+          # Make sure Ubuntu is WSL2
+          wsl.exe --set-version Ubuntu 2
+      
+          # Make Ubuntu the default distribution
+          wsl.exe --set-default Ubuntu
+      
+          Write-Host "=== Final WSL status ==="
           wsl.exe --list --verbose
       
-          $ubuntuExists = wsl.exe --list --quiet 2>$null |
-            ForEach-Object { $_.Trim() } |
-            Where-Object { $_ -match "^Ubuntu($|[-0-9.])" }
-      
-          if (-not $ubuntuExists) {
-              throw "Ubuntu WSL distribution was not installed or registered."
-          }
-      
-          Write-Host "Ubuntu WSL distribution is installed successfully."
-    
-    
+          Write-Host "Ubuntu WSL2 is ready."    
       # ============================================================
       # 7. FORCE UBUNTU TO WSL2
       # ============================================================
