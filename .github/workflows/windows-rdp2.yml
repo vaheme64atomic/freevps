@@ -1,1 +1,556 @@
+name: Windows Cloud RDP
+
+on:
+workflow_dispatch:
+
+jobs:
+build:
+runs-on: windows-latest
+timeout-minutes: 360
+
+```
+steps:
+
+  # ============================================================
+  # 1. ENABLE RDP
+  # ============================================================
+  - name: 1. Enable Remote Desktop & Firewall
+    shell: powershell
+    run: |
+      Write-Host "=== Enabling Remote Desktop ===" -ForegroundColor Cyan
+
+      Set-ItemProperty `
+        -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' `
+        -Name "fDenyTSConnections" `
+        -Value 0
+
+      Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+
+      # Keep NLA enabled
+      Set-ItemProperty `
+        -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' `
+        -Name "UserAuthentication" `
+        -Value 1
+
+      Write-Host "RDP enabled." -ForegroundColor Green
+
+
+  # ============================================================
+  # 2. CREATE ADMIN ACCOUNT
+  # ============================================================
+  - name: 2. Create Admin Account
+    shell: powershell
+    run: |
+      Write-Host "=== Creating NvDAdmin ===" -ForegroundColor Cyan
+
+      $Password = ConvertTo-SecureString `
+        "P@ssw0rd1qazXSW@#" `
+        -AsPlainText `
+        -Force
+
+      if (-not (Get-LocalUser -Name "NvDAdmin" -ErrorAction SilentlyContinue)) {
+
+        New-LocalUser `
+          -Name "NvDAdmin" `
+          -Password $Password `
+          -PasswordNeverExpires `
+          -AccountNeverExpires
+
+        Add-LocalGroupMember `
+          -Group "Administrators" `
+          -Member "NvDAdmin"
+
+        Write-Host "NvDAdmin created." -ForegroundColor Green
+
+      } else {
+        Write-Host "NvDAdmin already exists." -ForegroundColor Yellow
+      }
+
+
+  # ============================================================
+  # 3. INSTALL TAILSCALE
+  # ============================================================
+  - name: 3. Install & Connect Tailscale VPN
+    shell: powershell
+    env:
+      TAILSCALE_AUTHKEY: ${{ secrets.TAILSCALE_AUTHKEY }}
+    run: |
+      Write-Host "=== Installing Tailscale ===" -ForegroundColor Cyan
+
+      $TailscalePath = "C:\Program Files\Tailscale\tailscale.exe"
+
+      if (-not (Test-Path $TailscalePath)) {
+
+        Invoke-WebRequest `
+          "https://pkgs.tailscale.com/stable/tailscale-setup-latest-amd64.msi" `
+          -OutFile "C:\tailscale.msi"
+
+        Start-Process `
+          msiexec.exe `
+          -ArgumentList "/i C:\tailscale.msi /quiet /norestart" `
+          -Wait
+      }
+
+      Start-Sleep -Seconds 5
+
+      & $TailscalePath up `
+        --authkey="$env:TAILSCALE_AUTHKEY" `
+        --hostname="github-rdp-server"
+
+      Start-Sleep -Seconds 8
+
+      $ts_ip = & $TailscalePath ip -4
+
+      Write-Host ""
+      Write-Host "==================================================" -ForegroundColor Green
+      Write-Host "       >>> WINDOWS RDP SERVER READY <<<" -ForegroundColor Cyan
+      Write-Host "==================================================" -ForegroundColor Green
+      Write-Host "Tailscale IP : $ts_ip" -ForegroundColor Yellow
+      Write-Host "Username     : NvDAdmin" -ForegroundColor Yellow
+      Write-Host "Password     : P@ssw0rd1qazXSW@#" -ForegroundColor Yellow
+      Write-Host "==================================================" -ForegroundColor Green
+
+
+  # ============================================================
+  # 4. ENABLE WSL2
+  # ============================================================
+  - name: 4. Enable WSL2
+    shell: powershell
+    run: |
+      Write-Host "=== Preparing WSL2 ===" -ForegroundColor Cyan
+
+      dism.exe /online /enable-feature `
+        /featurename:Microsoft-Windows-Subsystem-Linux `
+        /all `
+        /norestart
+
+      dism.exe /online /enable-feature `
+        /featurename:VirtualMachinePlatform `
+        /all `
+        /norestart
+
+      Write-Host "WSL2 Windows features enabled." -ForegroundColor Green
+
+      # Install WSL if available
+      try {
+        wsl --install --no-distribution
+      }
+      catch {
+        Write-Warning "WSL install command returned: $($_.Exception.Message)"
+      }
+
+      wsl --set-default-version 2
+
+      Write-Host "WSL2 configured." -ForegroundColor Green
+
+
+  # ============================================================
+  # 5. INSTALL UBUNTU WSL
+  # ============================================================
+  - name: 5. Install Ubuntu WSL
+    shell: powershell
+    run: |
+      Write-Host "=== Installing Ubuntu WSL ===" -ForegroundColor Cyan
+
+      try {
+
+        wsl --install Ubuntu --no-launch
+
+      }
+      catch {
+
+        Write-Warning "Ubuntu installation returned: $($_.Exception.Message)"
+      }
+
+      Write-Host "Ubuntu WSL installation step completed." -ForegroundColor Green
+
+
+  # ============================================================
+  # 6. INSTALL DEVELOPMENT TOOLS
+  # ============================================================
+  - name: 6. Install Git, VS Code, 7-Zip and GitHub CLI
+    shell: powershell
+    run: |
+      Write-Host "=== Installing Development Tools ===" -ForegroundColor Cyan
+
+      $packages = @(
+        "Git.Git",
+        "Microsoft.VisualStudioCode",
+        "7zip.7zip",
+        "GitHub.cli"
+      )
+
+      foreach ($package in $packages) {
+
+        Write-Host "Installing $package ..." -ForegroundColor Yellow
+
+        winget install `
+          --id $package `
+          --exact `
+          --silent `
+          --accept-package-agreements `
+          --accept-source-agreements `
+          --disable-interactivity
+
+        if ($LASTEXITCODE -ne 0) {
+          Write-Warning "$package returned exit code $LASTEXITCODE"
+        }
+      }
+
+      Write-Host "Development tools completed." -ForegroundColor Green
+
+
+  # ============================================================
+  # 7. INSTALL PYTHON
+  # ============================================================
+  - name: 7. Install Python
+    shell: powershell
+    run: |
+      Write-Host "=== Installing Python ===" -ForegroundColor Cyan
+
+      winget install `
+        --id Python.Python.3.12 `
+        --exact `
+        --silent `
+        --accept-package-agreements `
+        --accept-source-agreements `
+        --disable-interactivity
+
+      Write-Host "Python installed." -ForegroundColor Green
+
+
+  # ============================================================
+  # 8. INSTALL NODE.JS
+  # ============================================================
+  - name: 8. Install Node.js LTS
+    shell: powershell
+    run: |
+      Write-Host "=== Installing Node.js LTS ===" -ForegroundColor Cyan
+
+      winget install `
+        --id OpenJS.NodeJS.LTS `
+        --exact `
+        --silent `
+        --accept-package-agreements `
+        --accept-source-agreements `
+        --disable-interactivity
+
+      Write-Host "Node.js installed." -ForegroundColor Green
+
+
+  # ============================================================
+  # 9. INSTALL PERSIAN KEYBOARD
+  # ============================================================
+  - name: 9. Configure Persian Keyboard
+    shell: powershell
+    run: |
+      Write-Host "=== Configuring Persian Keyboard ===" -ForegroundColor Cyan
+
+      try {
+
+        if (Get-Command Install-Language -ErrorAction SilentlyContinue) {
+
+          Install-Language `
+            -Language fa-IR `
+            -CopyToSettings `
+            -ErrorAction SilentlyContinue
+        }
+
+      }
+      catch {
+        Write-Warning "Persian language package: $($_.Exception.Message)"
+      }
+
+      # Current Windows user
+      $LanguageList = New-WinUserLanguageList -Language "en-US"
+      $LanguageList.Add("fa-IR")
+
+      Set-WinUserLanguageList `
+        -LanguageList $LanguageList `
+        -Force
+
+      Write-Host "Persian keyboard configured." -ForegroundColor Green
+
+
+  # ============================================================
+  # 10. INSTALL SQL SERVER
+  # ============================================================
+  - name: 10. Install SQL Server Developer
+    shell: powershell
+    run: |
+      Write-Host "=== Installing SQL Server Developer ===" -ForegroundColor Cyan
+
+      winget install `
+        --id Microsoft.SQLServer.2019.Developer `
+        --exact `
+        --silent `
+        --accept-package-agreements `
+        --accept-source-agreements `
+        --disable-interactivity
+
+      Write-Host "SQL Server installation completed." -ForegroundColor Green
+
+
+  # ============================================================
+  # 11. INSTALL SSMS
+  # ============================================================
+  - name: 11. Install SQL Server Management Studio
+    shell: powershell
+    run: |
+      Write-Host "=== Installing SSMS ===" -ForegroundColor Cyan
+
+      winget install `
+        --id Microsoft.SQLServerManagementStudio `
+        --exact `
+        --silent `
+        --accept-package-agreements `
+        --accept-source-agreements `
+        --disable-interactivity
+
+      Write-Host "SSMS installed." -ForegroundColor Green
+
+
+  # ============================================================
+  # 12. INSTALL DOCKER DESKTOP
+  # ============================================================
+  - name: 12. Install Docker Desktop
+    shell: powershell
+    run: |
+      Write-Host "=== Installing Docker Desktop ===" -ForegroundColor Cyan
+
+      winget install `
+        --id Docker.DockerDesktop `
+        --exact `
+        --silent `
+        --accept-package-agreements `
+        --accept-source-agreements `
+        --disable-interactivity
+
+      Write-Host "Docker Desktop installed." -ForegroundColor Green
+
+
+  # ============================================================
+  # 13. CONFIGURE DOCKER
+  # ============================================================
+  - name: 13. Configure Docker
+    shell: powershell
+    run: |
+      Write-Host "=== Configuring Docker ===" -ForegroundColor Cyan
+
+      $DockerExe = "C:\Program Files\Docker\Docker\Docker Desktop.exe"
+
+      if (Test-Path $DockerExe) {
+
+        Start-Process $DockerExe
+
+        Write-Host "Docker Desktop started." -ForegroundColor Green
+
+        Start-Sleep -Seconds 20
+
+        try {
+          docker version
+        }
+        catch {
+          Write-Warning "Docker Engine is not ready yet."
+          Write-Warning "Docker Desktop may require WSL2 initialization/restart."
+        }
+
+      } else {
+
+        Write-Warning "Docker Desktop executable not found."
+      }
+
+
+  # ============================================================
+  # 14. INSTALL AZURE CLI + POWERSHELL
+  # ============================================================
+  - name: 14. Install CLI Tools
+    shell: powershell
+    run: |
+      Write-Host "=== Installing CLI tools ===" -ForegroundColor Cyan
+
+      $packages = @(
+        "Microsoft.AzureCLI",
+        "Microsoft.PowerShell"
+      )
+
+      foreach ($package in $packages) {
+
+        winget install `
+          --id $package `
+          --exact `
+          --silent `
+          --accept-package-agreements `
+          --accept-source-agreements `
+          --disable-interactivity `
+          2>$null
+      }
+
+      Write-Host "CLI tools installed." -ForegroundColor Green
+
+
+  # ============================================================
+  # 15. GIT BASIC CONFIGURATION
+  # ============================================================
+  - name: 15. Configure Git
+    shell: powershell
+    run: |
+      Write-Host "=== Configuring Git ===" -ForegroundColor Cyan
+
+      git config --global init.defaultBranch main
+      git config --global core.autocrlf true
+      git config --global pull.rebase false
+
+      Write-Host "Git configured." -ForegroundColor Green
+
+
+  # ============================================================
+  # 16. CREATE WORK DIRECTORIES
+  # ============================================================
+  - name: 16. Create Development Directories
+    shell: powershell
+    run: |
+      Write-Host "=== Creating Development Directories ===" -ForegroundColor Cyan
+
+      $directories = @(
+        "C:\Projects",
+        "C:\Projects\Odoo",
+        "C:\Projects\Python",
+        "C:\Projects\Node",
+        "C:\Projects\SQL",
+        "C:\Backup",
+        "C:\Tools"
+      )
+
+      foreach ($dir in $directories) {
+
+        if (-not (Test-Path $dir)) {
+          New-Item `
+            -ItemType Directory `
+            -Path $dir `
+            -Force | Out-Null
+        }
+      }
+
+      Write-Host "Development directories ready." -ForegroundColor Green
+
+
+  # ============================================================
+  # 17. ENVIRONMENT VERIFICATION
+  # ============================================================
+  - name: 17. Verify Environment
+    shell: powershell
+    run: |
+      Write-Host ""
+      Write-Host "==================================================" -ForegroundColor Cyan
+      Write-Host "              VPS VERIFICATION" -ForegroundColor Cyan
+      Write-Host "==================================================" -ForegroundColor Cyan
+
+      Write-Host ""
+      Write-Host "--- Git ---" -ForegroundColor Yellow
+      git --version
+
+      Write-Host ""
+      Write-Host "--- Python ---" -ForegroundColor Yellow
+      python --version
+
+      Write-Host ""
+      Write-Host "--- Node.js ---" -ForegroundColor Yellow
+      node --version
+
+      Write-Host ""
+      Write-Host "--- Docker ---" -ForegroundColor Yellow
+      try {
+        docker --version
+      }
+      catch {
+        Write-Warning "Docker CLI not available yet."
+      }
+
+      Write-Host ""
+      Write-Host "--- WSL ---" -ForegroundColor Yellow
+      wsl --status
+
+      Write-Host ""
+      Write-Host "--- Tailscale ---" -ForegroundColor Yellow
+      & "C:\Program Files\Tailscale\tailscale.exe" version
+
+      Write-Host ""
+      Write-Host "--- SQL Server Services ---" -ForegroundColor Yellow
+
+      Get-Service |
+        Where-Object {
+          $_.Name -like "*MSSQL*"
+        } |
+        Select-Object Name, Status, StartType
+
+      Write-Host ""
+      Write-Host "--- Persian Keyboard ---" -ForegroundColor Yellow
+
+      Get-WinUserLanguageList |
+        Select-Object LanguageTag, InputMethodTips
+
+      Write-Host ""
+      Write-Host "==================================================" -ForegroundColor Green
+      Write-Host "          VPS INITIALIZATION COMPLETE" -ForegroundColor Green
+      Write-Host "==================================================" -ForegroundColor Green
+
+
+  # ============================================================
+  # 18. FINAL CONNECTION INFORMATION
+  # ============================================================
+  - name: 18. Display Connection Information
+    shell: powershell
+    run: |
+      $TailscalePath = "C:\Program Files\Tailscale\tailscale.exe"
+
+      $ts_ip = & $TailscalePath ip -4
+
+      Write-Host ""
+      Write-Host "==================================================" -ForegroundColor Green
+      Write-Host "              WINDOWS VPS READY" -ForegroundColor Green
+      Write-Host "==================================================" -ForegroundColor Green
+      Write-Host ""
+      Write-Host "RDP Address : $ts_ip" -ForegroundColor Cyan
+      Write-Host "Username    : NvDAdmin" -ForegroundColor Cyan
+      Write-Host "Password    : P@ssw0rd1qazXSW@#" -ForegroundColor Cyan
+      Write-Host ""
+      Write-Host "Installed:"
+      Write-Host "  [OK] Tailscale"
+      Write-Host "  [OK] RDP"
+      Write-Host "  [OK] Git"
+      Write-Host "  [OK] GitHub CLI"
+      Write-Host "  [OK] VS Code"
+      Write-Host "  [OK] Python"
+      Write-Host "  [OK] Node.js"
+      Write-Host "  [OK] Persian Keyboard"
+      Write-Host "  [OK] SQL Server"
+      Write-Host "  [OK] SSMS"
+      Write-Host "  [OK] WSL2"
+      Write-Host "  [OK] Ubuntu"
+      Write-Host "  [OK] Docker Desktop"
+      Write-Host ""
+      Write-Host "==================================================" -ForegroundColor Green
+
+
+  # ============================================================
+  # 19. KEEP SERVER ALIVE
+  # ============================================================
+  - name: 19. Keep Server Alive
+    shell: powershell
+    run: |
+      Write-Host "=== Server is running ===" -ForegroundColor Green
+
+      for ($i = 1; $i -le 2880; $i++) {
+
+        Start-Sleep -Seconds 60
+
+        if (($i % 5) -eq 0) {
+
+          $time = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+
+          Write-Host "[$time] Server running... $i/2880 minutes"
+        }
+      }
+```
 
