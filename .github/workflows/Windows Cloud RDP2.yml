@@ -121,22 +121,55 @@ jobs:
   
         Write-Host "WSL2 enabled." -ForegroundColor Green
   
-  
     # ============================================================
     # 5. INSTALL GIT
     # ============================================================
     - name: 5. Install Git
       shell: powershell
       run: |
-        winget install `
-          --id Git.Git `
-          --exact `
-          --silent `
-          --accept-package-agreements `
-          --accept-source-agreements `
-          --disable-interactivity
+        Write-Host "=== Checking Git ===" -ForegroundColor Cyan
   
-        Write-Host "Git installed." -ForegroundColor Green
+        $git = Get-Command git.exe -ErrorAction SilentlyContinue
+  
+        if ($git) {
+  
+          Write-Host "Git is already installed." -ForegroundColor Yellow
+          git --version
+  
+        } else {
+  
+          Write-Host "Git not found. Installing..." -ForegroundColor Cyan
+  
+          winget install `
+            --id Git.Git `
+            --exact `
+            --silent `
+            --accept-package-agreements `
+            --accept-source-agreements `
+            --disable-interactivity `
+            --source winget
+  
+          if ($LASTEXITCODE -ne 0) {
+            throw "Git installation failed. winget exit code: $LASTEXITCODE"
+          }
+  
+          # Refresh PATH
+          $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" +
+                      [System.Environment]::GetEnvironmentVariable("Path", "User")
+  
+          Write-Host "Git installation completed." -ForegroundColor Green
+        }
+  
+        Write-Host ""
+        Write-Host "Git verification:" -ForegroundColor Cyan
+        git --version
+  
+        if ($LASTEXITCODE -ne 0) {
+          throw "Git verification failed."
+        }
+  
+        Write-Host "Git is READY." -ForegroundColor Green
+
   
   
     # ============================================================
