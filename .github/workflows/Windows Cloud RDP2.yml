@@ -9,283 +9,283 @@ jobs:
     timeout-minutes: 360
     steps:
 
-  # ============================================================
-  # 1. ENABLE RDP
-  # ============================================================
-  - name: 1. Enable Remote Desktop
-    shell: powershell
-    run: |
-      Set-ItemProperty `
-        -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' `
-        -Name "fDenyTSConnections" `
-        -Value 0
-
-      Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-
-      Set-ItemProperty `
-        -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' `
-        -Name "UserAuthentication" `
-        -Value 1
-
-      Write-Host "RDP enabled." -ForegroundColor Green
-
-
-  # ============================================================
-  # 2. CREATE ADMIN ACCOUNT
-  # ============================================================
-  - name: 2. Create Admin Account
-    shell: powershell
-    run: |
-      $Password = ConvertTo-SecureString `
-        "P@ssw0rd1qazXSW@#" `
-        -AsPlainText `
-        -Force
-
-      if (-not (Get-LocalUser -Name "NvDAdmin" -ErrorAction SilentlyContinue)) {
-
-        New-LocalUser `
-          -Name "NvDAdmin" `
-          -Password $Password `
-          -PasswordNeverExpires `
-          -AccountNeverExpires
-
-        Add-LocalGroupMember `
-          -Group "Administrators" `
-          -Member "NvDAdmin"
-      }
-
-      Write-Host "NvDAdmin ready." -ForegroundColor Green
-
-
-  # ============================================================
-  # 3. TAILSCALE
-  # ============================================================
-  - name: 3. Install & Connect Tailscale
-    shell: powershell
-    env:
-      TAILSCALE_AUTHKEY: ${{ secrets.TAILSCALE_AUTHKEY }}
-    run: |
-      $TailscalePath = "C:\Program Files\Tailscale\tailscale.exe"
-
-      if (-not (Test-Path $TailscalePath)) {
-
-        Invoke-WebRequest `
-          "https://pkgs.tailscale.com/stable/tailscale-setup-latest-amd64.msi" `
-          -OutFile "C:\tailscale.msi"
-
-        Start-Process `
-          msiexec.exe `
-          -ArgumentList "/i C:\tailscale.msi /quiet /norestart" `
-          -Wait
-      }
-
-      Start-Sleep -Seconds 5
-
-      & $TailscalePath up `
-        --authkey="$env:TAILSCALE_AUTHKEY" `
-        --hostname="github-rdp-server"
-
-      Start-Sleep -Seconds 5
-
-      $ts_ip = & $TailscalePath ip -4
-
-      Write-Host ""
-      Write-Host "============================================" -ForegroundColor Green
-      Write-Host "RDP SERVER READY" -ForegroundColor Green
-      Write-Host "============================================" -ForegroundColor Green
-      Write-Host "Tailscale IP : $ts_ip" -ForegroundColor Cyan
-      Write-Host "Username     : NvDAdmin" -ForegroundColor Cyan
-      Write-Host "Password     : P@ssw0rd1qazXSW@#" -ForegroundColor Cyan
-      Write-Host "============================================" -ForegroundColor Green
-
-
-  # ============================================================
-  # 4. WSL2
-  # ============================================================
-  - name: 4. Enable WSL2
-    shell: powershell
-    run: |
-      Write-Host "Enabling WSL2..." -ForegroundColor Cyan
-
-      dism.exe /online /enable-feature `
-        /featurename:Microsoft-Windows-Subsystem-Linux `
-        /all `
-        /norestart
-
-      dism.exe /online /enable-feature `
-        /featurename:VirtualMachinePlatform `
-        /all `
-        /norestart
-
-      wsl --set-default-version 2
-
-      Write-Host "WSL2 enabled." -ForegroundColor Green
-
-
-  # ============================================================
-  # 5. INSTALL GIT
-  # ============================================================
-  - name: 5. Install Git
-    shell: powershell
-    run: |
-      winget install `
-        --id Git.Git `
-        --exact `
-        --silent `
-        --accept-package-agreements `
-        --accept-source-agreements `
-        --disable-interactivity
-
-      Write-Host "Git installed." -ForegroundColor Green
-
-
-  # ============================================================
-  # 6. INSTALL PYTHON
-  # ============================================================
-  - name: 6. Install Python
-    shell: powershell
-    run: |
-      winget install `
-        --id Python.Python.3.12 `
-        --exact `
-        --silent `
-        --accept-package-agreements `
-        --accept-source-agreements `
-        --disable-interactivity
-
-      Write-Host "Python installed." -ForegroundColor Green
-
-
-  # ============================================================
-  # 7. INSTALL NODE.JS
-  # ============================================================
-  - name: 7. Install Node.js LTS
-    shell: powershell
-    run: |
-      winget install `
-        --id OpenJS.NodeJS.LTS `
-        --exact `
-        --silent `
-        --accept-package-agreements `
-        --accept-source-agreements `
-        --disable-interactivity
-
-      Write-Host "Node.js installed." -ForegroundColor Green
-
-
-  # ============================================================
-  # 8. INSTALL VS CODE
-  # ============================================================
-  - name: 8. Install VS Code
-    shell: powershell
-    run: |
-      winget install `
-        --id Microsoft.VisualStudioCode `
-        --exact `
-        --silent `
-        --accept-package-agreements `
-        --accept-source-agreements `
-        --disable-interactivity
-
-      Write-Host "VS Code installed." -ForegroundColor Green
-
-
-  # ============================================================
-  # 9. PERSIAN KEYBOARD
-  # ============================================================
-  - name: 9. Configure Persian Keyboard
-    shell: powershell
-    run: |
-      Write-Host "Configuring Persian keyboard..." -ForegroundColor Cyan
-
-      try {
-
-        $LanguageList = New-WinUserLanguageList -Language "en-US"
-        $LanguageList.Add("fa-IR")
-
-        Set-WinUserLanguageList `
-          -LanguageList $LanguageList `
+    # ============================================================
+    # 1. ENABLE RDP
+    # ============================================================
+    - name: 1. Enable Remote Desktop
+      shell: powershell
+      run: |
+        Set-ItemProperty `
+          -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' `
+          -Name "fDenyTSConnections" `
+          -Value 0
+  
+        Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+  
+        Set-ItemProperty `
+          -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' `
+          -Name "UserAuthentication" `
+          -Value 1
+  
+        Write-Host "RDP enabled." -ForegroundColor Green
+  
+  
+    # ============================================================
+    # 2. CREATE ADMIN ACCOUNT
+    # ============================================================
+    - name: 2. Create Admin Account
+      shell: powershell
+      run: |
+        $Password = ConvertTo-SecureString `
+          "P@ssw0rd1qazXSW@#" `
+          -AsPlainText `
           -Force
-
-        Write-Host "Persian keyboard configured." -ForegroundColor Green
-
-      }
-      catch {
-
-        Write-Warning "Persian keyboard configuration failed:"
-        Write-Warning $_.Exception.Message
-      }
-
-
-  # ============================================================
-  # 10. INSTALL DOCKER DESKTOP
-  # ============================================================
-  - name: 10. Install Docker Desktop
-    shell: powershell
-    run: |
-      Write-Host "Installing Docker Desktop..." -ForegroundColor Cyan
-
-      winget install `
-        --id Docker.DockerDesktop `
-        --exact `
-        --silent `
-        --accept-package-agreements `
-        --accept-source-agreements `
-        --disable-interactivity
-
-      Write-Host "Docker Desktop installed." -ForegroundColor Green
-
-
-  # ============================================================
-  # 11. VERIFY
-  # ============================================================
-  - name: 11. Verify Environment
-    shell: powershell
-    run: |
-      Write-Host ""
-      Write-Host "============================================" -ForegroundColor Cyan
-      Write-Host "ENVIRONMENT CHECK" -ForegroundColor Cyan
-      Write-Host "============================================" -ForegroundColor Cyan
-
-      Write-Host "`nGit:"
-      git --version
-
-      Write-Host "`nPython:"
-      python --version
-
-      Write-Host "`nNode:"
-      node --version
-
-      Write-Host "`nDocker:"
-      docker --version
-
-      Write-Host "`nWSL:"
-      wsl --status
-
-      Write-Host "`nTailscale:"
-      & "C:\Program Files\Tailscale\tailscale.exe" version
-
-      Write-Host ""
-      Write-Host "============================================" -ForegroundColor Green
-      Write-Host "VPS INITIALIZATION COMPLETE" -ForegroundColor Green
-      Write-Host "============================================" -ForegroundColor Green
-
-
-  # ============================================================
-  # 12. KEEP SERVER ALIVE
-  # ============================================================
-  - name: 12. Keep Server Alive
-    shell: powershell
-    run: |
-      for ($i = 1; $i -le 2880; $i++) {
-
-        Start-Sleep -Seconds 60
-
-        if (($i % 5) -eq 0) {
-
-          $time = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-
-          Write-Host "[$time] Server running... $i/2880 minutes"
+  
+        if (-not (Get-LocalUser -Name "NvDAdmin" -ErrorAction SilentlyContinue)) {
+  
+          New-LocalUser `
+            -Name "NvDAdmin" `
+            -Password $Password `
+            -PasswordNeverExpires `
+            -AccountNeverExpires
+  
+          Add-LocalGroupMember `
+            -Group "Administrators" `
+            -Member "NvDAdmin"
         }
-      }
-
+  
+        Write-Host "NvDAdmin ready." -ForegroundColor Green
+  
+  
+    # ============================================================
+    # 3. TAILSCALE
+    # ============================================================
+    - name: 3. Install & Connect Tailscale
+      shell: powershell
+      env:
+        TAILSCALE_AUTHKEY: ${{ secrets.TAILSCALE_AUTHKEY }}
+      run: |
+        $TailscalePath = "C:\Program Files\Tailscale\tailscale.exe"
+  
+        if (-not (Test-Path $TailscalePath)) {
+  
+          Invoke-WebRequest `
+            "https://pkgs.tailscale.com/stable/tailscale-setup-latest-amd64.msi" `
+            -OutFile "C:\tailscale.msi"
+  
+          Start-Process `
+            msiexec.exe `
+            -ArgumentList "/i C:\tailscale.msi /quiet /norestart" `
+            -Wait
+        }
+  
+        Start-Sleep -Seconds 5
+  
+        & $TailscalePath up `
+          --authkey="$env:TAILSCALE_AUTHKEY" `
+          --hostname="github-rdp-server"
+  
+        Start-Sleep -Seconds 5
+  
+        $ts_ip = & $TailscalePath ip -4
+  
+        Write-Host ""
+        Write-Host "============================================" -ForegroundColor Green
+        Write-Host "RDP SERVER READY" -ForegroundColor Green
+        Write-Host "============================================" -ForegroundColor Green
+        Write-Host "Tailscale IP : $ts_ip" -ForegroundColor Cyan
+        Write-Host "Username     : NvDAdmin" -ForegroundColor Cyan
+        Write-Host "Password     : P@ssw0rd1qazXSW@#" -ForegroundColor Cyan
+        Write-Host "============================================" -ForegroundColor Green
+  
+  
+    # ============================================================
+    # 4. WSL2
+    # ============================================================
+    - name: 4. Enable WSL2
+      shell: powershell
+      run: |
+        Write-Host "Enabling WSL2..." -ForegroundColor Cyan
+  
+        dism.exe /online /enable-feature `
+          /featurename:Microsoft-Windows-Subsystem-Linux `
+          /all `
+          /norestart
+  
+        dism.exe /online /enable-feature `
+          /featurename:VirtualMachinePlatform `
+          /all `
+          /norestart
+  
+        wsl --set-default-version 2
+  
+        Write-Host "WSL2 enabled." -ForegroundColor Green
+  
+  
+    # ============================================================
+    # 5. INSTALL GIT
+    # ============================================================
+    - name: 5. Install Git
+      shell: powershell
+      run: |
+        winget install `
+          --id Git.Git `
+          --exact `
+          --silent `
+          --accept-package-agreements `
+          --accept-source-agreements `
+          --disable-interactivity
+  
+        Write-Host "Git installed." -ForegroundColor Green
+  
+  
+    # ============================================================
+    # 6. INSTALL PYTHON
+    # ============================================================
+    - name: 6. Install Python
+      shell: powershell
+      run: |
+        winget install `
+          --id Python.Python.3.12 `
+          --exact `
+          --silent `
+          --accept-package-agreements `
+          --accept-source-agreements `
+          --disable-interactivity
+  
+        Write-Host "Python installed." -ForegroundColor Green
+  
+  
+    # ============================================================
+    # 7. INSTALL NODE.JS
+    # ============================================================
+    - name: 7. Install Node.js LTS
+      shell: powershell
+      run: |
+        winget install `
+          --id OpenJS.NodeJS.LTS `
+          --exact `
+          --silent `
+          --accept-package-agreements `
+          --accept-source-agreements `
+          --disable-interactivity
+  
+        Write-Host "Node.js installed." -ForegroundColor Green
+  
+  
+    # ============================================================
+    # 8. INSTALL VS CODE
+    # ============================================================
+    - name: 8. Install VS Code
+      shell: powershell
+      run: |
+        winget install `
+          --id Microsoft.VisualStudioCode `
+          --exact `
+          --silent `
+          --accept-package-agreements `
+          --accept-source-agreements `
+          --disable-interactivity
+  
+        Write-Host "VS Code installed." -ForegroundColor Green
+  
+  
+    # ============================================================
+    # 9. PERSIAN KEYBOARD
+    # ============================================================
+    - name: 9. Configure Persian Keyboard
+      shell: powershell
+      run: |
+        Write-Host "Configuring Persian keyboard..." -ForegroundColor Cyan
+  
+        try {
+  
+          $LanguageList = New-WinUserLanguageList -Language "en-US"
+          $LanguageList.Add("fa-IR")
+  
+          Set-WinUserLanguageList `
+            -LanguageList $LanguageList `
+            -Force
+  
+          Write-Host "Persian keyboard configured." -ForegroundColor Green
+  
+        }
+        catch {
+  
+          Write-Warning "Persian keyboard configuration failed:"
+          Write-Warning $_.Exception.Message
+        }
+  
+  
+    # ============================================================
+    # 10. INSTALL DOCKER DESKTOP
+    # ============================================================
+    - name: 10. Install Docker Desktop
+      shell: powershell
+      run: |
+        Write-Host "Installing Docker Desktop..." -ForegroundColor Cyan
+  
+        winget install `
+          --id Docker.DockerDesktop `
+          --exact `
+          --silent `
+          --accept-package-agreements `
+          --accept-source-agreements `
+          --disable-interactivity
+  
+        Write-Host "Docker Desktop installed." -ForegroundColor Green
+  
+  
+    # ============================================================
+    # 11. VERIFY
+    # ============================================================
+    - name: 11. Verify Environment
+      shell: powershell
+      run: |
+        Write-Host ""
+        Write-Host "============================================" -ForegroundColor Cyan
+        Write-Host "ENVIRONMENT CHECK" -ForegroundColor Cyan
+        Write-Host "============================================" -ForegroundColor Cyan
+  
+        Write-Host "`nGit:"
+        git --version
+  
+        Write-Host "`nPython:"
+        python --version
+  
+        Write-Host "`nNode:"
+        node --version
+  
+        Write-Host "`nDocker:"
+        docker --version
+  
+        Write-Host "`nWSL:"
+        wsl --status
+  
+        Write-Host "`nTailscale:"
+        & "C:\Program Files\Tailscale\tailscale.exe" version
+  
+        Write-Host ""
+        Write-Host "============================================" -ForegroundColor Green
+        Write-Host "VPS INITIALIZATION COMPLETE" -ForegroundColor Green
+        Write-Host "============================================" -ForegroundColor Green
+  
+  
+    # ============================================================
+    # 12. KEEP SERVER ALIVE
+    # ============================================================
+    - name: 12. Keep Server Alive
+      shell: powershell
+      run: |
+        for ($i = 1; $i -le 2880; $i++) {
+  
+          Start-Sleep -Seconds 60
+  
+          if (($i % 5) -eq 0) {
+  
+            $time = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+  
+            Write-Host "[$time] Server running... $i/2880 minutes"
+          }
+        }
+  
