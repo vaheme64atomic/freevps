@@ -7,11 +7,10 @@ jobs:
   build:
     runs-on: windows-latest
     timeout-minutes: 360
-    
     steps:
     
       # ============================================================
-      # 1. ENABLE RDP + FIREWALL
+      # 1. ENABLE RDP
       # ============================================================
       - name: 1. Enable Remote Desktop & Firewall
         shell: powershell
@@ -25,31 +24,25 @@ jobs:
     
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
     
-          # Keep Network Level Authentication enabled
+          # Keep NLA enabled
           Set-ItemProperty `
             -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' `
             -Name "UserAuthentication" `
             -Value 1
     
-          Write-Host "RDP enabled successfully." -ForegroundColor Green
+          Write-Host "RDP enabled." -ForegroundColor Green
     
     
       # ============================================================
-      # 2. CREATE ADMIN USER
+      # 2. CREATE ADMIN ACCOUNT
       # ============================================================
       - name: 2. Create Admin Account
         shell: powershell
-        env:
-          RDP_PASSWORD: ${{ secrets.RDP_PASSWORD }}
         run: |
           Write-Host "=== Creating NvDAdmin ===" -ForegroundColor Cyan
     
-          if (-not $env:RDP_PASSWORD) {
-            throw "RDP_PASSWORD secret is not configured."
-          }
-    
-          $SecurePassword = ConvertTo-SecureString `
-            $env:RDP_PASSWORD `
+          $Password = ConvertTo-SecureString `
+            "P@ssw0rd1qazXSW@#" `
             -AsPlainText `
             -Force
     
@@ -57,7 +50,7 @@ jobs:
     
             New-LocalUser `
               -Name "NvDAdmin" `
-              -Password $SecurePassword `
+              -Password $Password `
               -PasswordNeverExpires `
               -AccountNeverExpires
     
@@ -68,7 +61,6 @@ jobs:
             Write-Host "NvDAdmin created." -ForegroundColor Green
     
           } else {
-    
             Write-Host "NvDAdmin already exists." -ForegroundColor Yellow
           }
     
@@ -113,16 +105,68 @@ jobs:
           Write-Host "==================================================" -ForegroundColor Green
           Write-Host "Tailscale IP : $ts_ip" -ForegroundColor Yellow
           Write-Host "Username     : NvDAdmin" -ForegroundColor Yellow
-          Write-Host "Password     : Stored in GitHub Secret" -ForegroundColor Yellow
+          Write-Host "Password     : P@ssw0rd1qazXSW@#" -ForegroundColor Yellow
           Write-Host "==================================================" -ForegroundColor Green
-          Write-Host "Connect using:"
-          Write-Host "mstsc -> $ts_ip" -ForegroundColor Magenta
     
     
       # ============================================================
-      # 4. INSTALL DEVELOPMENT TOOLS
+      # 4. ENABLE WSL2
       # ============================================================
-      - name: 4. Install Git, VS Code, 7-Zip and Utilities
+      - name: 4. Enable WSL2
+        shell: powershell
+        run: |
+          Write-Host "=== Preparing WSL2 ===" -ForegroundColor Cyan
+    
+          dism.exe /online /enable-feature `
+            /featurename:Microsoft-Windows-Subsystem-Linux `
+            /all `
+            /norestart
+    
+          dism.exe /online /enable-feature `
+            /featurename:VirtualMachinePlatform `
+            /all `
+            /norestart
+    
+          Write-Host "WSL2 Windows features enabled." -ForegroundColor Green
+    
+          # Install WSL if available
+          try {
+            wsl --install --no-distribution
+          }
+          catch {
+            Write-Warning "WSL install command returned: $($_.Exception.Message)"
+          }
+    
+          wsl --set-default-version 2
+    
+          Write-Host "WSL2 configured." -ForegroundColor Green
+    
+    
+      # ============================================================
+      # 5. INSTALL UBUNTU WSL
+      # ============================================================
+      - name: 5. Install Ubuntu WSL
+        shell: powershell
+        run: |
+          Write-Host "=== Installing Ubuntu WSL ===" -ForegroundColor Cyan
+    
+          try {
+    
+            wsl --install Ubuntu --no-launch
+    
+          }
+          catch {
+    
+            Write-Warning "Ubuntu installation returned: $($_.Exception.Message)"
+          }
+    
+          Write-Host "Ubuntu WSL installation step completed." -ForegroundColor Green
+    
+    
+      # ============================================================
+      # 6. INSTALL DEVELOPMENT TOOLS
+      # ============================================================
+      - name: 6. Install Git, VS Code, 7-Zip and GitHub CLI
         shell: powershell
         run: |
           Write-Host "=== Installing Development Tools ===" -ForegroundColor Cyan
@@ -147,17 +191,17 @@ jobs:
               --disable-interactivity
     
             if ($LASTEXITCODE -ne 0) {
-              Write-Warning "Installation returned code $LASTEXITCODE for $package"
+              Write-Warning "$package returned exit code $LASTEXITCODE"
             }
           }
     
-          Write-Host "Development tools installation completed." -ForegroundColor Green
+          Write-Host "Development tools completed." -ForegroundColor Green
     
     
       # ============================================================
-      # 5. INSTALL PYTHON
+      # 7. INSTALL PYTHON
       # ============================================================
-      - name: 5. Install Python
+      - name: 7. Install Python
         shell: powershell
         run: |
           Write-Host "=== Installing Python ===" -ForegroundColor Cyan
@@ -170,30 +214,52 @@ jobs:
             --accept-source-agreements `
             --disable-interactivity
     
-          Write-Host "Python installation completed." -ForegroundColor Green
+          Write-Host "Python installed." -ForegroundColor Green
     
     
       # ============================================================
-      # 6. INSTALL PERSIAN LANGUAGE / KEYBOARD
+      # 8. INSTALL NODE.JS
       # ============================================================
-      - name: 6. Install Persian Keyboard
+      - name: 8. Install Node.js LTS
+        shell: powershell
+        run: |
+          Write-Host "=== Installing Node.js LTS ===" -ForegroundColor Cyan
+    
+          winget install `
+            --id OpenJS.NodeJS.LTS `
+            --exact `
+            --silent `
+            --accept-package-agreements `
+            --accept-source-agreements `
+            --disable-interactivity
+    
+          Write-Host "Node.js installed." -ForegroundColor Green
+    
+    
+      # ============================================================
+      # 9. INSTALL PERSIAN KEYBOARD
+      # ============================================================
+      - name: 9. Configure Persian Keyboard
         shell: powershell
         run: |
           Write-Host "=== Configuring Persian Keyboard ===" -ForegroundColor Cyan
     
-          # Install Persian language resources
-          if (Get-Command Install-Language -ErrorAction SilentlyContinue) {
+          try {
     
-            try {
-              Install-Language fa-IR -CopyToSettings -ErrorAction Stop
-              Write-Host "Persian language resources installed." -ForegroundColor Green
+            if (Get-Command Install-Language -ErrorAction SilentlyContinue) {
+    
+              Install-Language `
+                -Language fa-IR `
+                -CopyToSettings `
+                -ErrorAction SilentlyContinue
             }
-            catch {
-              Write-Warning "Persian language package installation returned: $($_.Exception.Message)"
-            }
+    
+          }
+          catch {
+            Write-Warning "Persian language package: $($_.Exception.Message)"
           }
     
-          # Configure current GitHub runner user
+          # Current Windows user
           $LanguageList = New-WinUserLanguageList -Language "en-US"
           $LanguageList.Add("fa-IR")
     
@@ -201,48 +267,16 @@ jobs:
             -LanguageList $LanguageList `
             -Force
     
-          Write-Host "Persian keyboard configured for current user." -ForegroundColor Green
-    
-          # Configure NvDAdmin
-          $password = ConvertTo-SecureString `
-            "${{ secrets.RDP_PASSWORD }}" `
-            -AsPlainText `
-            -Force
-    
-          $credential = New-Object `
-            System.Management.Automation.PSCredential(
-              "NvDAdmin",
-              $password
-            )
-    
-          $script = {
-            $List = New-WinUserLanguageList -Language "en-US"
-            $List.Add("fa-IR")
-    
-            Set-WinUserLanguageList `
-              -LanguageList $List `
-              -Force
-    
-            Set-WinDefaultInputMethodOverride `
-              -InputTip "0429:00000429"
-          }
-    
-          Start-Process `
-            powershell.exe `
-            -Credential $credential `
-            -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command & { $($script.ToString()) }" `
-            -Wait
-    
-          Write-Host "Persian keyboard configured for NvDAdmin." -ForegroundColor Green
+          Write-Host "Persian keyboard configured." -ForegroundColor Green
     
     
       # ============================================================
-      # 7. INSTALL SQL SERVER
+      # 10. INSTALL SQL SERVER
       # ============================================================
-      - name: 7. Install SQL Server Developer
+      - name: 10. Install SQL Server Developer
         shell: powershell
         run: |
-          Write-Host "=== Installing SQL Server ===" -ForegroundColor Cyan
+          Write-Host "=== Installing SQL Server Developer ===" -ForegroundColor Cyan
     
           winget install `
             --id Microsoft.SQLServer.2019.Developer `
@@ -256,9 +290,9 @@ jobs:
     
     
       # ============================================================
-      # 8. INSTALL SQL SERVER MANAGEMENT STUDIO
+      # 11. INSTALL SSMS
       # ============================================================
-      - name: 8. Install SQL Server Management Studio
+      - name: 11. Install SQL Server Management Studio
         shell: powershell
         run: |
           Write-Host "=== Installing SSMS ===" -ForegroundColor Cyan
@@ -271,13 +305,13 @@ jobs:
             --accept-source-agreements `
             --disable-interactivity
     
-          Write-Host "SSMS installation completed." -ForegroundColor Green
+          Write-Host "SSMS installed." -ForegroundColor Green
     
     
       # ============================================================
-      # 9. INSTALL DOCKER DESKTOP
+      # 12. INSTALL DOCKER DESKTOP
       # ============================================================
-      - name: 9. Install Docker Desktop
+      - name: 12. Install Docker Desktop
         shell: powershell
         run: |
           Write-Host "=== Installing Docker Desktop ===" -ForegroundColor Cyan
@@ -290,47 +324,55 @@ jobs:
             --accept-source-agreements `
             --disable-interactivity
     
-          Write-Host "Docker Desktop installation completed." -ForegroundColor Green
+          Write-Host "Docker Desktop installed." -ForegroundColor Green
     
     
       # ============================================================
-      # 10. ENABLE WSL
+      # 13. CONFIGURE DOCKER
       # ============================================================
-      - name: 10. Enable WSL
+      - name: 13. Configure Docker
         shell: powershell
         run: |
-          Write-Host "=== Enabling WSL ===" -ForegroundColor Cyan
+          Write-Host "=== Configuring Docker ===" -ForegroundColor Cyan
     
-          dism.exe /online /enable-feature `
-            /featurename:Microsoft-Windows-Subsystem-Linux `
-            /all `
-            /norestart
+          $DockerExe = "C:\Program Files\Docker\Docker\Docker Desktop.exe"
     
-          dism.exe /online /enable-feature `
-            /featurename:VirtualMachinePlatform `
-            /all `
-            /norestart
+          if (Test-Path $DockerExe) {
     
-          Write-Host "WSL features enabled." -ForegroundColor Green
+            Start-Process $DockerExe
+    
+            Write-Host "Docker Desktop started." -ForegroundColor Green
+    
+            Start-Sleep -Seconds 20
+    
+            try {
+              docker version
+            }
+            catch {
+              Write-Warning "Docker Engine is not ready yet."
+              Write-Warning "Docker Desktop may require WSL2 initialization/restart."
+            }
+    
+          } else {
+    
+            Write-Warning "Docker Desktop executable not found."
+          }
     
     
       # ============================================================
-      # 11. INSTALL COMMON CLI TOOLS
+      # 14. INSTALL AZURE CLI + POWERSHELL
       # ============================================================
-      - name: 11. Install Useful CLI Tools
+      - name: 14. Install CLI Tools
         shell: powershell
         run: |
-          Write-Host "=== Installing CLI Tools ===" -ForegroundColor Cyan
+          Write-Host "=== Installing CLI tools ===" -ForegroundColor Cyan
     
           $packages = @(
-            "OpenJS.NodeJS.LTS",
-            "Microsoft.PowerShell",
-            "Microsoft.AzureCLI"
+            "Microsoft.AzureCLI",
+            "Microsoft.PowerShell"
           )
     
           foreach ($package in $packages) {
-    
-            Write-Host "Installing $package ..." -ForegroundColor Yellow
     
             winget install `
               --id $package `
@@ -340,21 +382,66 @@ jobs:
               --accept-source-agreements `
               --disable-interactivity `
               2>$null
-    
           }
     
-          Write-Host "CLI tools completed." -ForegroundColor Green
+          Write-Host "CLI tools installed." -ForegroundColor Green
     
     
       # ============================================================
-      # 12. VERIFY INSTALLATION
+      # 15. GIT BASIC CONFIGURATION
       # ============================================================
-      - name: 12. Verify Environment
+      - name: 15. Configure Git
+        shell: powershell
+        run: |
+          Write-Host "=== Configuring Git ===" -ForegroundColor Cyan
+    
+          git config --global init.defaultBranch main
+          git config --global core.autocrlf true
+          git config --global pull.rebase false
+    
+          Write-Host "Git configured." -ForegroundColor Green
+    
+    
+      # ============================================================
+      # 16. CREATE WORK DIRECTORIES
+      # ============================================================
+      - name: 16. Create Development Directories
+        shell: powershell
+        run: |
+          Write-Host "=== Creating Development Directories ===" -ForegroundColor Cyan
+    
+          $directories = @(
+            "C:\Projects",
+            "C:\Projects\Odoo",
+            "C:\Projects\Python",
+            "C:\Projects\Node",
+            "C:\Projects\SQL",
+            "C:\Backup",
+            "C:\Tools"
+          )
+    
+          foreach ($dir in $directories) {
+    
+            if (-not (Test-Path $dir)) {
+              New-Item `
+                -ItemType Directory `
+                -Path $dir `
+                -Force | Out-Null
+            }
+          }
+    
+          Write-Host "Development directories ready." -ForegroundColor Green
+    
+    
+      # ============================================================
+      # 17. ENVIRONMENT VERIFICATION
+      # ============================================================
+      - name: 17. Verify Environment
         shell: powershell
         run: |
           Write-Host ""
           Write-Host "==================================================" -ForegroundColor Cyan
-          Write-Host "           ENVIRONMENT VERIFICATION" -ForegroundColor Cyan
+          Write-Host "              VPS VERIFICATION" -ForegroundColor Cyan
           Write-Host "==================================================" -ForegroundColor Cyan
     
           Write-Host ""
@@ -366,12 +453,21 @@ jobs:
           python --version
     
           Write-Host ""
-          Write-Host "--- Node ---" -ForegroundColor Yellow
+          Write-Host "--- Node.js ---" -ForegroundColor Yellow
           node --version
     
           Write-Host ""
           Write-Host "--- Docker ---" -ForegroundColor Yellow
-          docker --version
+          try {
+            docker --version
+          }
+          catch {
+            Write-Warning "Docker CLI not available yet."
+          }
+    
+          Write-Host ""
+          Write-Host "--- WSL ---" -ForegroundColor Yellow
+          wsl --status
     
           Write-Host ""
           Write-Host "--- Tailscale ---" -ForegroundColor Yellow
@@ -379,35 +475,79 @@ jobs:
     
           Write-Host ""
           Write-Host "--- SQL Server Services ---" -ForegroundColor Yellow
-          Get-Service | Where-Object {
-            $_.Name -like "*MSSQL*"
-          } | Select-Object Name, Status, StartType
+    
+          Get-Service |
+            Where-Object {
+              $_.Name -like "*MSSQL*"
+            } |
+            Select-Object Name, Status, StartType
     
           Write-Host ""
           Write-Host "--- Persian Keyboard ---" -ForegroundColor Yellow
-          Get-WinUserLanguageList | Select-Object LanguageTag, InputMethodTips
+    
+          Get-WinUserLanguageList |
+            Select-Object LanguageTag, InputMethodTips
     
           Write-Host ""
           Write-Host "==================================================" -ForegroundColor Green
-          Write-Host "           VPS INITIALIZATION COMPLETE" -ForegroundColor Green
+          Write-Host "          VPS INITIALIZATION COMPLETE" -ForegroundColor Green
           Write-Host "==================================================" -ForegroundColor Green
     
     
       # ============================================================
-      # 13. KEEP SERVER ALIVE
+      # 18. FINAL CONNECTION INFORMATION
       # ============================================================
-      - name: 13. Keep Server Alive
+      - name: 18. Display Connection Information
         shell: powershell
         run: |
-          Write-Host "=== Server is ready ===" -ForegroundColor Green
+          $TailscalePath = "C:\Program Files\Tailscale\tailscale.exe"
+    
+          $ts_ip = & $TailscalePath ip -4
+    
+          Write-Host ""
+          Write-Host "==================================================" -ForegroundColor Green
+          Write-Host "              WINDOWS VPS READY" -ForegroundColor Green
+          Write-Host "==================================================" -ForegroundColor Green
+          Write-Host ""
+          Write-Host "RDP Address : $ts_ip" -ForegroundColor Cyan
+          Write-Host "Username    : NvDAdmin" -ForegroundColor Cyan
+          Write-Host "Password    : P@ssw0rd1qazXSW@#" -ForegroundColor Cyan
+          Write-Host ""
+          Write-Host "Installed:"
+          Write-Host "  [OK] Tailscale"
+          Write-Host "  [OK] RDP"
+          Write-Host "  [OK] Git"
+          Write-Host "  [OK] GitHub CLI"
+          Write-Host "  [OK] VS Code"
+          Write-Host "  [OK] Python"
+          Write-Host "  [OK] Node.js"
+          Write-Host "  [OK] Persian Keyboard"
+          Write-Host "  [OK] SQL Server"
+          Write-Host "  [OK] SSMS"
+          Write-Host "  [OK] WSL2"
+          Write-Host "  [OK] Ubuntu"
+          Write-Host "  [OK] Docker Desktop"
+          Write-Host ""
+          Write-Host "==================================================" -ForegroundColor Green
+    
+    
+      # ============================================================
+      # 19. KEEP SERVER ALIVE
+      # ============================================================
+      - name: 19. Keep Server Alive
+        shell: powershell
+        run: |
+          Write-Host "=== Server is running ===" -ForegroundColor Green
     
           for ($i = 1; $i -le 2880; $i++) {
     
             Start-Sleep -Seconds 60
     
             if (($i % 5) -eq 0) {
+    
               $time = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     
               Write-Host "[$time] Server running... $i/2880 minutes"
             }
           }
+    ```
