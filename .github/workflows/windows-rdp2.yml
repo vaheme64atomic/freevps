@@ -1,4 +1,4 @@
-name: Windows Cloud RDP
+name: Windows Cloud RDP2
 
 on:
   workflow_dispatch:
