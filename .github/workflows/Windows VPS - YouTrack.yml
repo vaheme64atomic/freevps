@@ -1,4 +1,3 @@
-```yaml
 # ============================================================
 # YouTrack on Windows GitHub VPS
 # Architecture:
@@ -448,4 +447,3 @@ jobs:
               Write-Host "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - VPS alive"
               Start-Sleep -Seconds 60
           }
-```
