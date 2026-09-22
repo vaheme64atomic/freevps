@@ -213,30 +213,38 @@ jobs:
           Write-Host "YouTrack image is ready"
           Write-Host "=========================================="
       # ==========================================================
-      # 8. Remove previous YouTrack container if exists
+      # 8. Remove previous YouTrack container
       # ==========================================================
-      - name: 8. Clean previous YouTrack container
+      - name: 8. Remove previous YouTrack container
         shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
 
-          wsl.exe -d Ubuntu-24.04 -- bash -lc "
-            set -e
+          Write-Host "=========================================="
+          Write-Host "Preparing YouTrack container"
+          Write-Host "=========================================="
 
-            sudo service docker start || true
+          Write-Host ""
+          Write-Host "Checking existing YouTrack container..."
 
-            if sudo docker ps -a --format '{{.Names}}' \
-              | grep -qx 'youtrack'
-            then
-              echo 'Removing existing YouTrack container...'
+          $containerExists = wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo docker ps -a --format '{{.Names}}'"
 
-              sudo docker stop youtrack 2>/dev/null || true
-              sudo docker rm youtrack 2>/dev/null || true
-            else
-              echo 'No previous YouTrack container found.'
-            fi
-          "
+          if ($containerExists -match "(?m)^youtrack$") {
+              Write-Host "Existing YouTrack container found. Removing it..."
+              wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo docker rm -f youtrack"
+          }
+          else {
+              Write-Host "No existing YouTrack container found."
+          }
 
+          Write-Host ""
+          Write-Host "Remaining containers:"
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo docker ps -a"
+
+          Write-Host ""
+          Write-Host "=========================================="
+          Write-Host "Container preparation completed"
+          Write-Host "=========================================="
       # ==========================================================
       # 9. Start YouTrack
       # ==========================================================
