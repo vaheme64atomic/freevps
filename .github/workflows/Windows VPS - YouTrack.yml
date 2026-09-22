@@ -208,22 +208,26 @@ jobs:
           npm --version
 
       # ==========================================================
-      # 6. WSL
+      # 6. Prepare persistent YouTrack directories
       # ==========================================================
-      - name: 6. Prepare WSL2
+      - name: 6. Prepare YouTrack storage
         shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
 
           Write-Host "=========================================="
-          Write-Host "PREPARING WSL2"
+          Write-Host "Preparing YouTrack storage"
           Write-Host "=========================================="
 
-          wsl.exe --set-default-version 2
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo mkdir -p /opt/youtrack/data /opt/youtrack/conf /opt/youtrack/logs /opt/youtrack/backups"
+
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo chown -R 13001:13001 /opt/youtrack"
+
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo chmod -R u+rwX /opt/youtrack"
 
           Write-Host ""
-          Write-Host "WSL status:"
-          wsl.exe --status
+          Write-Host "Storage:"
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo ls -ld /opt/youtrack /opt/youtrack/data /opt/youtrack/conf /opt/youtrack/logs /opt/youtrack/backups"
 
       # ==========================================================
       # 7. UBUNTU 24.04
@@ -308,23 +312,26 @@ jobs:
           wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo docker compose version"
 
       # ==========================================================
-      # 10. DOCKER VERIFICATION
+      # 10. Force stable local Base URL
       # ==========================================================
-      - name: 10. Verify Docker
+      - name: 10. Configure YouTrack Base URL
         shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
 
           Write-Host "=========================================="
-          Write-Host "VERIFYING DOCKER"
+          Write-Host "Configuring YouTrack Base URL"
           Write-Host "=========================================="
 
-          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo service docker start"
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo docker stop youtrack"
 
-          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo docker info --format 'Server={{.ServerVersion}} Containers={{.Containers}} Images={{.Images}}'"
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo docker run --rm -v /opt/youtrack/conf:/opt/youtrack/conf jetbrains/youtrack:2026.2.18991 configure --base-url=http://localhost:8080"
 
-          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo docker run --rm hello-world"
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo docker start youtrack"
 
+          Write-Host ""
+          Write-Host "Base URL:"
+          Write-Host "http://localhost:8080"
       # ==========================================================
       # 11. YOUTRACK STORAGE
       # ==========================================================
