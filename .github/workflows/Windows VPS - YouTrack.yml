@@ -187,21 +187,31 @@ jobs:
           "
 
       # ==========================================================
-      # 7. Pull official YouTrack image
+      # 7. Pull YouTrack image
       # ==========================================================
-      - name: 7. Pull YouTrack
+      - name: 7. Pull YouTrack image
         shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
 
-          wsl.exe -d Ubuntu-24.04 -- bash -lc "
-            set -e
+          Write-Host "=========================================="
+          Write-Host "Pulling YouTrack image"
+          Write-Host "=========================================="
 
-            sudo service docker start || true
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo docker pull jetbrains/youtrack:2026.2.18991"
 
-            sudo docker pull jetbrains/youtrack:2026.2.18991
-          "
+          Write-Host ""
+          Write-Host "YouTrack image:"
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo docker image inspect jetbrains/youtrack:2026.2.18991 --format 'Image={{.RepoTags}}'"
 
+          Write-Host ""
+          Write-Host "Image ID:"
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo docker image inspect jetbrains/youtrack:2026.2.18991 --format 'ID={{.Id}}'"
+
+          Write-Host ""
+          Write-Host "=========================================="
+          Write-Host "YouTrack image is ready"
+          Write-Host "=========================================="
       # ==========================================================
       # 8. Remove previous YouTrack container if exists
       # ==========================================================
