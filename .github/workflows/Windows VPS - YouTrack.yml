@@ -16,48 +16,60 @@ jobs:
     steps:
 
       # ==========================================================
-      # 1. Prepare WSL2
+      # 1. Prepare WSL
       # ==========================================================
-      - name: 1. Prepare WSL2
+      - name: 1. Prepare WSL
         shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
 
           Write-Host "=========================================="
-          Write-Host "Preparing WSL2"
+          Write-Host "Preparing Windows WSL"
           Write-Host "=========================================="
 
-          wsl --install --no-distribution 2>$null
+          wsl --status
+
+          Write-Host ""
+          Write-Host "Setting WSL2 as default..."
 
           wsl --set-default-version 2
 
-          wsl --list --verbose
+          Write-Host ""
+          Write-Host "WSL status:"
+          wsl --status
 
       # ==========================================================
-      # 2. Install / Prepare Ubuntu
+      # 2. Install Ubuntu 24.04 on WSL2
       # ==========================================================
-      - name: 2. Prepare Ubuntu 24.04
+      - name: 2. Install Ubuntu 24.04
         shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
 
-          Write-Host "Checking Ubuntu-24.04..."
+          Write-Host "=========================================="
+          Write-Host "Installing Ubuntu 24.04 on WSL2"
+          Write-Host "=========================================="
 
-          $distros = wsl --list --quiet
+          # Make sure WSL is using version 2
+          wsl --set-default-version 2
 
-          if ($distros -notmatch "Ubuntu-24.04") {
-              Write-Host "Ubuntu-24.04 not found."
-              Write-Host "Installing Ubuntu-24.04..."
+          Write-Host ""
+          Write-Host "Available distributions:"
+          wsl --list --online
 
-              wsl --install Ubuntu-24.04 --no-launch
+          Write-Host ""
+          Write-Host "Installing Ubuntu 24.04..."
 
-              Start-Sleep -Seconds 10
-          }
+          wsl --install -d Ubuntu-24.04 --no-launch
 
-          wsl --set-version Ubuntu-24.04 2
+          Write-Host ""
+          Write-Host "Waiting for Ubuntu installation..."
 
+          Start-Sleep -Seconds 15
+
+          Write-Host ""
+          Write-Host "WSL distributions:"
           wsl --list --verbose
-
       # ==========================================================
       # 3. Initialize Ubuntu
       # ==========================================================
