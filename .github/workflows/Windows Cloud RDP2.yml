@@ -363,87 +363,89 @@ jobs:
       # ============================================================
       # 12. INSTALL DOCKER ENGINE IN UBUNTU
       # ============================================================
-      - name: 12. Install Docker Engine in Ubuntu
+      - name: 12. Install Docker Engine inside Ubuntu
         shell: powershell
         run: |
+          $ErrorActionPreference = "Stop"
+      
           Write-Host "=== Installing Docker Engine inside Ubuntu ===" -ForegroundColor Cyan
-    
-          # First, absolutely verify Ubuntu exists
-          $distros = @(wsl.exe --list --quiet 2>$null)
-    
-          if (-not ($distros -match "Ubuntu")) {
-            throw "Ubuntu is missing. Docker installation aborted."
-          }
-    
-          # Verify Ubuntu starts
-          wsl.exe -d Ubuntu -- echo "Ubuntu OK"
-    
+      
+          # Directly test Ubuntu instead of parsing `wsl --list` output.
+          wsl.exe -d Ubuntu -- echo "Ubuntu is available"
+      
           if ($LASTEXITCODE -ne 0) {
-            throw "Ubuntu cannot be started. Docker installation aborted."
+              throw "Ubuntu exists but cannot be started."
           }
-    
-          # Docker installation script
-          $dockerScript = @'
+      
+          Write-Host "Ubuntu is available. Installing Docker Engine..."
+      
+          wsl.exe -d Ubuntu -- bash -c @'
           set -e
-    
-          echo "=========================================="
-          echo " Docker Engine Installation"
-          echo "=========================================="
-    
+      
+          echo "=== Updating Ubuntu ==="
           sudo apt-get update
-    
+      
+          echo "=== Installing prerequisites ==="
           sudo apt-get install -y \
             ca-certificates \
             curl \
             gnupg
-    
+      
+          echo "=== Adding Docker GPG key ==="
           sudo install -m 0755 -d /etc/apt/keyrings
-    
-          sudo curl -fsSL \
-            https://download.docker.com/linux/ubuntu/gpg \
+      
+          sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
             -o /etc/apt/keyrings/docker.asc
-    
+      
           sudo chmod a+r /etc/apt/keyrings/docker.asc
-    
-          echo \
-            "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
-            $(. /etc/os-release && echo "$VERSION_CODENAME") stable" |
-            sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-    
+      
+          echo "=== Adding Docker repository ==="
+      
+          . /etc/os-release
+      
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu ${VERSION_CODENAME} stable" \
+            | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+      
+          echo "=== Installing Docker Engine ==="
+      
           sudo apt-get update
-    
+      
           sudo apt-get install -y \
             docker-ce \
             docker-ce-cli \
             containerd.io \
             docker-buildx-plugin \
             docker-compose-plugin
-    
+      
+          echo "=== Starting Docker ==="
+      
           sudo service docker start
-    
+      
+          echo "=== Adding current user to docker group ==="
+      
           sudo usermod -aG docker $USER
-    
-          echo ""
-          echo "Docker Engine installed."
-          echo ""
-    
-          docker --version
-          docker compose version
+      
+          echo "=== Docker version ==="
+      
+          sudo docker version
+      
+          echo "=== Docker Compose version ==="
+      
+          sudo docker compose version
+      
+          echo "=== Docker Engine installation completed ==="
           '@
-    
-          $encoded = [Convert]::ToBase64String(
-            [Text.Encoding]::UTF8.GetBytes($dockerScript)
-          )
-    
-          wsl.exe -d Ubuntu -- bash -c "echo $encoded | base64 -d > /tmp/install-docker.sh && chmod +x /tmp/install-docker.sh && /tmp/install-docker.sh"
-    
+      
           if ($LASTEXITCODE -ne 0) {
-            throw "Docker installation failed inside Ubuntu."
+              throw "Docker Engine installation inside Ubuntu failed."
           }
-    
-          Write-Host "Docker Engine installed successfully." -ForegroundColor Green
-    
-    
+      
+          Write-Host ""
+          Write-Host "======================================"
+          Write-Host " Docker Engine installed in Ubuntu"
+          Write-Host " Docker Desktop NOT installed"
+          Write-Host " Docker Compose plugin installed"
+          Write-Host "======================================"
       # ============================================================
       # 13. VERIFY DOCKER
       # ============================================================
