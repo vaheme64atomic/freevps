@@ -122,30 +122,41 @@ jobs:
           wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo docker compose version"
 
       # ==========================================================
-      # 5. Verify Docker
+      # 5. Verify Docker Engine
       # ==========================================================
-      - name: 5. Verify Docker
+      - name: 5. Verify Docker Engine
         shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
 
-          wsl.exe -d Ubuntu-24.04 -- bash -lc "
-            set -e
+          Write-Host "=========================================="
+          Write-Host "Verifying Docker Engine"
+          Write-Host "=========================================="
 
-            sudo service docker start || true
+          Write-Host ""
+          Write-Host "Starting Docker..."
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo service docker start"
 
-            echo 'Docker:'
-            sudo docker version
+          Write-Host ""
+          Write-Host "Docker version:"
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo docker --version"
 
-            echo ''
-            echo 'Docker Compose:'
-            sudo docker compose version
+          Write-Host ""
+          Write-Host "Docker Compose version:"
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo docker compose version"
 
-            echo ''
-            echo 'Docker info:'
-            sudo docker info
-          "
+          Write-Host ""
+          Write-Host "Docker info:"
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo docker info --format 'Server={{.ServerVersion}} Containers={{.Containers}} Images={{.Images}}'"
 
+          Write-Host ""
+          Write-Host "Docker test:"
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo docker run --rm hello-world"
+
+          Write-Host ""
+          Write-Host "=========================================="
+          Write-Host "Docker verification completed"
+          Write-Host "=========================================="
       # ==========================================================
       # 6. Prepare persistent YouTrack directories
       # ==========================================================
