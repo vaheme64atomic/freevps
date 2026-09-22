@@ -175,67 +175,56 @@ jobs:
       # ============================================================
       # 6. VERIFY UBUNTU
       # ============================================================
-      - name: 6. Install Ubuntu WSL2
+      - name: 6. Verify Ubuntu WSL2
         shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
       
-          Write-Host "=== Current WSL distributions ==="
+          Write-Host "=== WSL status ==="
+          wsl.exe --status
+      
+          Write-Host ""
+          Write-Host "=== Installed distributions ==="
           wsl.exe --list --verbose
       
-          # Check Ubuntu using the normal verbose WSL output
-          $wslList = (wsl.exe --list --verbose 2>&1 | Out-String)
+          Write-Host ""
+          Write-Host "=== Testing Ubuntu directly ==="
       
-          if ($wslList -match "Ubuntu") {
-              Write-Host "Ubuntu WSL distribution found."
-          }
-          else {
-              Write-Host "Ubuntu not found. Installing Ubuntu..."
+          # Do NOT parse the output of `wsl --list`.
+          # WSL on GitHub Windows runners may return Unicode output
+          # that PowerShell does not match correctly.
       
-              wsl.exe --install --distribution Ubuntu --no-launch
+          wsl.exe -d Ubuntu -- echo "Ubuntu WSL2 is working"
       
-              Start-Sleep -Seconds 20
-      
-              Write-Host "=== WSL distributions after installation ==="
-              wsl.exe --list --verbose
-      
-              $wslList = (wsl.exe --list --verbose 2>&1 | Out-String)
-      
-              if ($wslList -notmatch "Ubuntu") {
-                  Write-Host "Trying winget installation..."
-      
-                  winget install `
-                    --id Canonical.Ubuntu `
-                    --exact `
-                    --accept-source-agreements `
-                    --accept-package-agreements `
-                    --silent
-      
-                  Start-Sleep -Seconds 30
-      
-                  Write-Host "=== WSL distributions after winget ==="
-                  wsl.exe --list --verbose
-      
-                  $wslList = (wsl.exe --list --verbose 2>&1 | Out-String)
-              }
+          if ($LASTEXITCODE -ne 0) {
+              throw "Ubuntu WSL distribution exists but could not be started."
           }
       
-          if ($wslList -notmatch "Ubuntu") {
-              throw "Ubuntu WSL distribution is not available."
-          }
+          Write-Host ""
+          Write-Host "Ubuntu WSL2 is working correctly."
       
-          Write-Host "Ubuntu WSL distribution is available."
+          Write-Host ""
+          Write-Host "=== Setting Ubuntu as default ==="
       
-          # Make sure Ubuntu is WSL2
-          wsl.exe --set-version Ubuntu 2
-      
-          # Make Ubuntu the default distribution
           wsl.exe --set-default Ubuntu
       
-          Write-Host "=== Final WSL status ==="
-          wsl.exe --list --verbose
+          if ($LASTEXITCODE -ne 0) {
+              throw "Failed to set Ubuntu as the default WSL distribution."
+          }
       
-          Write-Host "Ubuntu WSL2 is ready."    
+          Write-Host ""
+          Write-Host "=== Final verification ==="
+      
+          wsl.exe -d Ubuntu -- bash -c "echo 'Linux kernel:'; uname -a; echo 'Ubuntu:'; cat /etc/os-release | head -n 2"
+      
+          if ($LASTEXITCODE -ne 0) {
+              throw "Ubuntu final verification failed."
+          }
+      
+          Write-Host ""
+          Write-Host "======================================"
+          Write-Host " Ubuntu WSL2 READY"
+          Write-Host "======================================"
       # ============================================================
       # 7. FORCE UBUNTU TO WSL2
       # ============================================================
