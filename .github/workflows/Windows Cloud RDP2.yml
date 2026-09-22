@@ -369,86 +369,107 @@ jobs:
           $ErrorActionPreference = "Stop"
       
           Write-Host "==========================================" -ForegroundColor Cyan
-          Write-Host " Installing Docker Engine inside Ubuntu" -ForegroundColor Cyan
+          Write-Host " INSTALL DOCKER ENGINE IN UBUNTU" -ForegroundColor Cyan
           Write-Host "==========================================" -ForegroundColor Cyan
       
-          # Confirm Ubuntu works
+          # 1. Check Ubuntu
           wsl.exe -d Ubuntu -- bash -c "echo 'Ubuntu is working'"
       
           if ($LASTEXITCODE -ne 0) {
               throw "Ubuntu cannot be started."
           }
       
-          # Update Ubuntu
+          # 2. Update Ubuntu
           wsl.exe -d Ubuntu -- bash -c "sudo apt-get update"
       
           if ($LASTEXITCODE -ne 0) {
               throw "Ubuntu apt update failed."
           }
       
-          # Install prerequisites
+          # 3. Install prerequisites
           wsl.exe -d Ubuntu -- bash -c "sudo apt-get install -y ca-certificates curl gnupg"
       
           if ($LASTEXITCODE -ne 0) {
               throw "Docker prerequisites installation failed."
           }
       
-          # Create Docker keyring
+          # 4. Create Docker keyring
           wsl.exe -d Ubuntu -- bash -c "sudo install -m 0755 -d /etc/apt/keyrings"
       
-          # Download Docker GPG key
+          # 5. Download Docker GPG key
           wsl.exe -d Ubuntu -- bash -c "sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc"
       
           if ($LASTEXITCODE -ne 0) {
               throw "Docker GPG key download failed."
           }
       
-          # Make key readable
+          # 6. Set key permissions
           wsl.exe -d Ubuntu -- bash -c "sudo chmod a+r /etc/apt/keyrings/docker.asc"
       
-          # Configure Docker repository
-          wsl.exe -d Ubuntu -- bash -c "source /etc/os-release && echo 'deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $VERSION_CODENAME stable' | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null"
+          # 7. Get Ubuntu architecture and codename separately
+          $UbuntuArch = (wsl.exe -d Ubuntu -- bash -c "dpkg --print-architecture").Trim()
+      
+          if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($UbuntuArch)) {
+              throw "Could not determine Ubuntu architecture."
+          }
+      
+          $UbuntuCodename = (wsl.exe -d Ubuntu -- bash -c ". /etc/os-release && echo `$VERSION_CODENAME").Trim()
+      
+          if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($UbuntuCodename)) {
+              throw "Could not determine Ubuntu release codename."
+          }
+      
+          Write-Host "Ubuntu architecture: $UbuntuArch"
+          Write-Host "Ubuntu codename: $UbuntuCodename"
+      
+          # 8. Configure Docker repository
+          $DockerRepo = "deb [arch=$UbuntuArch signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $UbuntuCodename stable"
+      
+          Write-Host "Docker repository:"
+          Write-Host $DockerRepo
+      
+          wsl.exe -d Ubuntu -- bash -c "echo '$DockerRepo' | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null"
       
           if ($LASTEXITCODE -ne 0) {
               throw "Docker repository configuration failed."
           }
       
-          # Update package lists
+          # 9. Update package lists
           wsl.exe -d Ubuntu -- bash -c "sudo apt-get update"
       
           if ($LASTEXITCODE -ne 0) {
               throw "Docker repository apt update failed."
           }
       
-          # Install Docker Engine + Compose
+          # 10. Install Docker Engine
           wsl.exe -d Ubuntu -- bash -c "sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin"
       
           if ($LASTEXITCODE -ne 0) {
               throw "Docker Engine installation failed."
           }
       
-          # Start Docker
+          # 11. Start Docker daemon
           wsl.exe -d Ubuntu -- bash -c "sudo service docker start"
       
           if ($LASTEXITCODE -ne 0) {
               throw "Docker service failed to start."
           }
       
-          # Verify Docker CLI
+          # 12. Verify Docker CLI
           wsl.exe -d Ubuntu -- bash -c "sudo docker --version"
       
           if ($LASTEXITCODE -ne 0) {
               throw "Docker CLI verification failed."
           }
       
-          # Verify Compose
+          # 13. Verify Docker Compose
           wsl.exe -d Ubuntu -- bash -c "sudo docker compose version"
       
           if ($LASTEXITCODE -ne 0) {
               throw "Docker Compose verification failed."
           }
       
-          # Final Docker test
+          # 14. Run Docker test container
           wsl.exe -d Ubuntu -- bash -c "sudo docker run --rm hello-world"
       
           if ($LASTEXITCODE -ne 0) {
@@ -458,7 +479,7 @@ jobs:
           Write-Host ""
           Write-Host "==========================================" -ForegroundColor Green
           Write-Host " Docker Engine + Compose READY" -ForegroundColor Green
-          Write-Host " Docker Desktop was NOT installed" -ForegroundColor Green
+          Write-Host " Docker Desktop NOT installed" -ForegroundColor Green
           Write-Host "==========================================" -ForegroundColor Green
       # ============================================================
       # 13. VERIFY DOCKER
