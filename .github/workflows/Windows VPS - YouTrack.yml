@@ -356,50 +356,46 @@ jobs:
           Write-Host "Verification completed"
           Write-Host "=========================================="
       # ==========================================================
-      # 13. Final diagnostics
+      # 13. YouTrack Final Status
       # ==========================================================
       - name: 13. YouTrack Final Status
         shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
 
-          wsl.exe -d Ubuntu-24.04 -- bash -lc "
-            echo ''
-            echo '=========================================='
-            echo '       YOURTRACK FINAL STATUS'
-            echo '=========================================='
+          Write-Host ""
+          Write-Host "=========================================="
+          Write-Host "       YOUTRACK FINAL STATUS"
+          Write-Host "=========================================="
 
-            echo ''
-            echo 'Container:'
-            sudo docker ps \
-              --filter name=youtrack
+          Write-Host ""
+          Write-Host "Container:"
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo docker ps --filter name=youtrack"
 
-            echo ''
-            echo 'Base URL:'
-            echo 'http://localhost:8080'
+          Write-Host ""
+          Write-Host "Base URL:"
+          Write-Host "http://localhost:8080"
 
-            echo ''
-            echo 'HTTP:'
+          Write-Host ""
+          Write-Host "HTTP:"
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "curl -s -o /dev/null -w 'HTTP=%{http_code}\n' http://127.0.0.1:8080/hub/auth/login"
 
-            curl -s \
-              -o /dev/null \
-              -w 'HTTP=%{http_code}\n' \
-              http://127.0.0.1:8080/hub/auth/login
+          Write-Host ""
+          Write-Host "Docker restart policy:"
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo docker inspect youtrack --format '{{.HostConfig.RestartPolicy.Name}}'"
 
-            echo ''
-            echo 'Docker restart policy:'
+          Write-Host ""
+          Write-Host "YouTrack container status:"
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo docker inspect youtrack --format '{{.State.Status}}'"
 
-            sudo docker inspect \
-              --format='{{.HostConfig.RestartPolicy.Name}}' \
-              youtrack
+          Write-Host ""
+          Write-Host "YouTrack started at:"
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo docker inspect youtrack --format '{{.State.StartedAt}}'"
 
-            echo ''
-            echo 'YouTrack container uptime:'
-
-            sudo docker inspect \
-              --format='{{.State.Status}} | {{.State.StartedAt}}' \
-              youtrack
-          "
+          Write-Host ""
+          Write-Host "=========================================="
+          Write-Host "       YOUTRACK IS READY"
+          Write-Host "=========================================="
 
       # ==========================================================
       # 14. Keep Windows VPS alive
