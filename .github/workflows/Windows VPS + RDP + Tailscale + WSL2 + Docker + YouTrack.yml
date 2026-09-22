@@ -1,0 +1,604 @@
+
+# ============================================================
+# Windows VPS + RDP + Tailscale + WSL2 + Docker + YouTrack
+# Architecture:
+# Windows Runner
+#   ├── RDP
+#   ├── Tailscale
+#   └── WSL2 Ubuntu 24.04
+#          └── Docker Engine
+#                 └── YouTrack
+# ============================================================
+
+name: Windows VPS - RDP - Tailscale - YouTrack
+
+on:
+  workflow_dispatch:
+
+jobs:
+  youtrack:
+    runs-on: windows-latest
+
+    steps:
+
+      # ==========================================================
+      # 1. Prepare WSL
+      # ==========================================================
+      - name: 1. Prepare WSL
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          Write-Host "=========================================="
+          Write-Host "Preparing Windows WSL"
+          Write-Host "=========================================="
+
+          wsl --status
+          wsl --set-default-version 2
+
+          Write-Host ""
+          Write-Host "WSL status:"
+          wsl --status
+
+
+      # ==========================================================
+      # 2. Install Ubuntu 24.04 on WSL2
+      # ==========================================================
+      - name: 2. Install Ubuntu 24.04
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          Write-Host "=========================================="
+          Write-Host "Installing Ubuntu 24.04 on WSL2"
+          Write-Host "=========================================="
+
+          wsl --set-default-version 2
+
+          Write-Host ""
+          Write-Host "Available distributions:"
+          wsl --list --online
+
+          Write-Host ""
+          Write-Host "Installing Ubuntu 24.04..."
+
+          wsl --install -d Ubuntu-24.04 --no-launch
+
+          Write-Host ""
+          Write-Host "Waiting for Ubuntu installation..."
+
+          Start-Sleep -Seconds 15
+
+          Write-Host ""
+          Write-Host "WSL distributions:"
+          wsl --list --verbose
+
+
+      # ==========================================================
+      # 3. Initialize Ubuntu 24.04
+      # ==========================================================
+      - name: 3. Initialize Ubuntu 24.04
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          Write-Host "=========================================="
+          Write-Host "Initializing Ubuntu 24.04"
+          Write-Host "=========================================="
+
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "set -e; echo 'Ubuntu information'; cat /etc/os-release; echo 'Kernel:'; uname -a; echo 'WSL distribution:'; wsl.exe --list --verbose"
+
+
+      # ==========================================================
+      # 4. Install Docker Engine
+      # ==========================================================
+      - name: 4. Install Docker Engine
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          Write-Host "=========================================="
+          Write-Host "Installing Docker Engine"
+          Write-Host "=========================================="
+
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo apt-get update"
+
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo apt-get install -y ca-certificates curl gnupg"
+
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo install -m 0755 -d /etc/apt/keyrings"
+
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor --yes -o /etc/apt/keyrings/docker.gpg"
+
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo chmod a+r /etc/apt/keyrings/docker.gpg"
+
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "echo 'deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu noble stable' | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null"
+
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo apt-get update"
+
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin"
+
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo service docker start"
+
+          Write-Host ""
+          Write-Host "Docker version:"
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo docker version"
+
+          Write-Host ""
+          Write-Host "Docker Compose version:"
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo docker compose version"
+
+
+      # ==========================================================
+      # 5. Verify Docker Engine
+      # ==========================================================
+      - name: 5. Verify Docker Engine
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          Write-Host "=========================================="
+          Write-Host "Verifying Docker Engine"
+          Write-Host "=========================================="
+
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo service docker start"
+
+          Write-Host ""
+          Write-Host "Docker version:"
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo docker --version"
+
+          Write-Host ""
+          Write-Host "Docker Compose version:"
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo docker compose version"
+
+          Write-Host ""
+          Write-Host "Docker info:"
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo docker info --format 'Server={{.ServerVersion}} Containers={{.Containers}} Images={{.Images}}'"
+
+          Write-Host ""
+          Write-Host "Docker test:"
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo docker run --rm hello-world"
+
+          Write-Host ""
+          Write-Host "=========================================="
+          Write-Host "Docker verification completed"
+          Write-Host "=========================================="
+
+
+      # ==========================================================
+      # 6. Prepare YouTrack storage
+      # ==========================================================
+      - name: 6. Prepare YouTrack storage
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          Write-Host "=========================================="
+          Write-Host "Preparing YouTrack storage"
+          Write-Host "=========================================="
+
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo mkdir -p /opt/youtrack/data /opt/youtrack/conf /opt/youtrack/logs /opt/youtrack/backups"
+
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo chown -R 13001:13001 /opt/youtrack"
+
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo chmod -R u+rwX /opt/youtrack"
+
+          Write-Host ""
+          Write-Host "Storage:"
+
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo ls -ld /opt/youtrack /opt/youtrack/data /opt/youtrack/conf /opt/youtrack/logs /opt/youtrack/backups"
+
+
+      # ==========================================================
+      # 7. Pull YouTrack image
+      # ==========================================================
+      - name: 7. Pull YouTrack image
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          Write-Host "=========================================="
+          Write-Host "Pulling YouTrack image"
+          Write-Host "=========================================="
+
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo docker pull jetbrains/youtrack:2026.2.18991"
+
+          Write-Host ""
+          Write-Host "YouTrack image:"
+
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo docker image inspect jetbrains/youtrack:2026.2.18991 --format 'Image={{.RepoTags}}'"
+
+          Write-Host ""
+          Write-Host "Image ID:"
+
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo docker image inspect jetbrains/youtrack:2026.2.18991 --format 'ID={{.Id}}'"
+
+          Write-Host ""
+          Write-Host "=========================================="
+          Write-Host "YouTrack image is ready"
+          Write-Host "=========================================="
+
+
+      # ==========================================================
+      # 8. Remove previous YouTrack container
+      # ==========================================================
+      - name: 8. Remove previous YouTrack container
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          Write-Host "=========================================="
+          Write-Host "Preparing YouTrack container"
+          Write-Host "=========================================="
+
+          $containerExists = wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo docker ps -a --format '{{.Names}}'"
+
+          if ($containerExists -match "(?m)^youtrack$") {
+              Write-Host "Existing YouTrack container found. Removing it..."
+              wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo docker rm -f youtrack"
+          }
+          else {
+              Write-Host "No existing YouTrack container found."
+          }
+
+          Write-Host ""
+          Write-Host "Remaining containers:"
+
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo docker ps -a"
+
+
+      # ==========================================================
+      # 9. Start YouTrack
+      # ==========================================================
+      - name: 9. Start YouTrack
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          Write-Host "=========================================="
+          Write-Host "Starting YouTrack"
+          Write-Host "=========================================="
+
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo service docker start"
+
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo docker run -d --name youtrack --restart unless-stopped -v /opt/youtrack/data:/opt/youtrack/data -v /opt/youtrack/conf:/opt/youtrack/conf -v /opt/youtrack/logs:/opt/youtrack/logs -v /opt/youtrack/backups:/opt/youtrack/backups -p 8080:8080 jetbrains/youtrack:2026.2.18991"
+
+          Write-Host ""
+          Write-Host "Container status:"
+
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo docker ps --filter name=youtrack"
+
+
+      # ==========================================================
+      # 10. Configure YouTrack Base URL
+      # ==========================================================
+      - name: 10. Configure YouTrack Base URL
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          Write-Host "=========================================="
+          Write-Host "Configuring YouTrack Base URL"
+          Write-Host "=========================================="
+
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo docker stop youtrack"
+
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo docker run --rm -v /opt/youtrack/conf:/opt/youtrack/conf jetbrains/youtrack:2026.2.18991 configure --base-url=http://localhost:8080"
+
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo docker start youtrack"
+
+          Write-Host ""
+          Write-Host "Base URL:"
+          Write-Host "http://localhost:8080"
+
+
+      # ==========================================================
+      # 11. Verify YouTrack HTTP
+      # ==========================================================
+      - name: 11. Verify YouTrack HTTP
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          Write-Host "=========================================="
+          Write-Host "Verifying YouTrack HTTP"
+          Write-Host "=========================================="
+
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo docker ps --filter name=youtrack"
+
+          Write-Host ""
+          Write-Host "HTTP test:"
+
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "curl -s -o /dev/null -w 'HTTP=%{http_code}\n' http://127.0.0.1:8080/hub/auth/login"
+
+          Write-Host ""
+          Write-Host "Listening port:"
+
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo ss -lntp | grep ':8080'"
+
+
+      # ==========================================================
+      # 12. Final YouTrack verification
+      # ==========================================================
+      - name: 12. Final YouTrack Verification
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          Write-Host "=========================================="
+          Write-Host "YouTrack Final Verification"
+          Write-Host "=========================================="
+
+          Write-Host ""
+          Write-Host "HTTP:"
+
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "curl -s -o /dev/null -w 'HTTP=%{http_code}\n' http://127.0.0.1:8080/hub/auth/login"
+
+          Write-Host ""
+          Write-Host "Container:"
+
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo docker ps --filter name=youtrack"
+
+          Write-Host ""
+          Write-Host "Restart policy:"
+
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo docker inspect youtrack --format '{{.HostConfig.RestartPolicy.Name}}'"
+
+          Write-Host ""
+          Write-Host "Status:"
+
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo docker inspect youtrack --format '{{.State.Status}}'"
+
+
+      # ==========================================================
+      # 13. Configure Windows RDP
+      # ==========================================================
+      - name: 13. Configure Windows RDP
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          Write-Host "=========================================="
+          Write-Host "Configuring Windows RDP"
+          Write-Host "=========================================="
+
+          $username = "NvDAdmin"
+          $password = "P@ssw0rd1qazXSW@#"
+
+          Write-Host ""
+          Write-Host "Enabling Remote Desktop..."
+
+          Set-ItemProperty `
+            -Path "HKLM:\System\CurrentControlSet\Control\Terminal Server" `
+            -Name "fDenyTSConnections" `
+            -Value 0
+
+          Set-ItemProperty `
+            -Path "HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp" `
+            -Name "UserAuthentication" `
+            -Value 1
+
+          Write-Host ""
+          Write-Host "Enabling RDP firewall rules..."
+
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+
+          Write-Host ""
+          Write-Host "Creating RDP user..."
+
+          $securePassword = ConvertTo-SecureString $password -AsPlainText -Force
+
+          $existingUser = Get-LocalUser -Name $username -ErrorAction SilentlyContinue
+
+          if ($null -eq $existingUser) {
+              New-LocalUser `
+                -Name $username `
+                -Password $securePassword `
+                -AccountNeverExpires `
+                -PasswordNeverExpires `
+                -UserMayNotChangePassword `
+                -Description "GitHub VPS RDP User"
+          }
+          else {
+              Set-LocalUser `
+                -Name $username `
+                -Password $securePassword
+          }
+
+          Write-Host ""
+          Write-Host "Adding user to Remote Desktop Users..."
+
+          Add-LocalGroupMember `
+            -Group "Remote Desktop Users" `
+            -Member $username `
+            -ErrorAction SilentlyContinue
+
+          Write-Host ""
+          Write-Host "Restarting Remote Desktop service..."
+
+          Restart-Service TermService -Force
+
+          Write-Host ""
+          Write-Host "RDP configuration completed."
+
+
+      # ==========================================================
+      # 14. Install Tailscale
+      # ==========================================================
+      - name: 14. Install Tailscale
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          Write-Host "=========================================="
+          Write-Host "Installing Tailscale"
+          Write-Host "=========================================="
+
+          $tailscaleExe = "$env:ProgramFiles\Tailscale\tailscale.exe"
+
+          if (-not (Test-Path $tailscaleExe)) {
+
+              Write-Host "Downloading Tailscale installer..."
+
+              $installer = "$env:TEMP\tailscale-setup.exe"
+
+              Invoke-WebRequest `
+                -Uri "https://pkgs.tailscale.com/stable/tailscale-setup-latest.exe" `
+                -OutFile $installer
+
+              Write-Host ""
+              Write-Host "Installing Tailscale..."
+
+              Start-Process `
+                -FilePath $installer `
+                -ArgumentList "/quiet" `
+                -Wait `
+                -NoNewWindow
+
+              Start-Sleep -Seconds 5
+          }
+          else {
+              Write-Host "Tailscale already installed."
+          }
+
+          if (-not (Test-Path $tailscaleExe)) {
+              throw "Tailscale executable was not found after installation."
+          }
+
+          Write-Host ""
+          Write-Host "Tailscale version:"
+
+          & $tailscaleExe version
+
+
+      # ==========================================================
+      # 15. Connect Windows VPS to Tailscale
+      # ==========================================================
+      - name: 15. Connect Windows VPS to Tailscale
+        shell: powershell
+        env:
+          TAILSCALE_AUTHKEY: ${{ secrets.TAILSCALE_AUTHKEY }}
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          Write-Host "=========================================="
+          Write-Host "Connecting Windows VPS to Tailscale"
+          Write-Host "=========================================="
+
+          if ([string]::IsNullOrWhiteSpace($env:TAILSCALE_AUTHKEY)) {
+              throw "TAILSCALE_AUTHKEY GitHub Secret is missing."
+          }
+
+          $tailscaleExe = "$env:ProgramFiles\Tailscale\tailscale.exe"
+
+          Write-Host ""
+          Write-Host "Enabling unattended mode and authenticating..."
+
+          & $tailscaleExe up `
+            --authkey="$env:TAILSCALE_AUTHKEY" `
+            --hostname="github-rdp-server" `
+            --unattended=true
+
+          if ($LASTEXITCODE -ne 0) {
+              throw "Tailscale authentication failed."
+          }
+
+          Write-Host ""
+          Write-Host "Tailscale status:"
+
+          & $tailscaleExe status
+
+          Write-Host ""
+          Write-Host "Tailscale IPv4:"
+
+          $tailscaleIP = (& $tailscaleExe ip -4).Trim()
+
+          if ([string]::IsNullOrWhiteSpace($tailscaleIP)) {
+              throw "Tailscale IPv4 address was not obtained."
+          }
+
+          Write-Host $tailscaleIP
+
+
+      # ==========================================================
+      # 16. Verify RDP through Tailscale
+      # ==========================================================
+      - name: 16. Verify RDP and Tailscale
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          Write-Host ""
+          Write-Host "=========================================="
+          Write-Host "RDP + TAILSCALE FINAL STATUS"
+          Write-Host "=========================================="
+
+          $tailscaleExe = "$env:ProgramFiles\Tailscale\tailscale.exe"
+
+          Write-Host ""
+          Write-Host "Tailscale status:"
+
+          & $tailscaleExe status
+
+          Write-Host ""
+          Write-Host "Tailscale IPv4:"
+
+          $tailscaleIP = (& $tailscaleExe ip -4).Trim()
+
+          Write-Host $tailscaleIP
+
+          Write-Host ""
+          Write-Host "Testing local RDP port 3389..."
+
+          $rdpTest = Test-NetConnection `
+            -ComputerName "127.0.0.1" `
+            -Port 3389 `
+            -WarningAction SilentlyContinue
+
+          if (-not $rdpTest.TcpTestSucceeded) {
+              throw "RDP port 3389 is not reachable."
+          }
+
+          Write-Host "RDP port 3389: OPEN"
+
+          Write-Host ""
+          Write-Host "=========================================="
+          Write-Host "RDP CONNECTION INFORMATION"
+          Write-Host "=========================================="
+
+          Write-Host ""
+          Write-Host "RDP Address:"
+          Write-Host "$tailscaleIP`:3389"
+
+          Write-Host ""
+          Write-Host "Username:"
+          Write-Host "NvDAdmin"
+
+          Write-Host ""
+          Write-Host "Password:"
+          Write-Host "P@ssw0rd1qazXSW@#"
+
+          Write-Host ""
+          Write-Host "YouTrack:"
+          Write-Host "http://localhost:8080"
+
+          Write-Host ""
+          Write-Host "=========================================="
+          Write-Host "WINDOWS VPS IS READY"
+          Write-Host "=========================================="
+
+
+      # ==========================================================
+      # 17. Keep Windows VPS alive
+      # ==========================================================
+      - name: 17. Keep Windows VPS Alive
+        shell: powershell
+        run: |
+          Write-Host ""
+          Write-Host "=========================================="
+          Write-Host "WINDOWS VPS IS ONLINE"
+          Write-Host "=========================================="
+
+          while ($true) {
+              Write-Host "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - VPS alive"
+              Start-Sleep -Seconds 60
+          }
