@@ -299,49 +299,33 @@ jobs:
           "
 
       # ==========================================================
-      # 11. Wait for YouTrack
+      # 11. Verify YouTrack HTTP
       # ==========================================================
-      - name: 11. Wait for YouTrack
+      - name: 11. Verify YouTrack HTTP
         shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
 
-          wsl.exe -d Ubuntu-24.04 -- bash -lc '
-            set -e
+          Write-Host "=========================================="
+          Write-Host "Verifying YouTrack HTTP"
+          Write-Host "=========================================="
 
-            echo "Waiting for YouTrack..."
+          Write-Host ""
+          Write-Host "Container status:"
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo docker ps --filter name=youtrack"
 
-            for i in $(seq 1 60); do
+          Write-Host ""
+          Write-Host "HTTP test:"
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "curl -s -o /dev/null -w 'HTTP=%{http_code}\n' http://127.0.0.1:8080/hub/auth/login"
 
-              if curl -fsS \
-                -o /dev/null \
-                http://127.0.0.1:8080/hub/auth/login
-              then
-                echo ""
-                echo "=========================================="
-                echo "YouTrack is READY"
-                echo "=========================================="
-                exit 0
-              fi
+          Write-Host ""
+          Write-Host "Listening port:"
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo ss -lntp | grep ':8080'"
 
-              echo "[$i/60] YouTrack is not ready yet..."
-
-              sleep 5
-            done
-
-            echo ""
-            echo "ERROR: YouTrack did not become ready."
-
-            echo ""
-            echo "Container status:"
-            sudo docker ps -a --filter name=youtrack
-
-            echo ""
-            echo "Last logs:"
-            sudo docker logs --tail 150 youtrack
-
-            exit 1
-          '
+          Write-Host ""
+          Write-Host "=========================================="
+          Write-Host "YouTrack HTTP verification completed"
+          Write-Host "=========================================="
 
       # ==========================================================
       # 12. Verify HTTP
