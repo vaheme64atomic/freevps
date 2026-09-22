@@ -71,27 +71,18 @@ jobs:
           Write-Host "WSL distributions:"
           wsl --list --verbose
       # ==========================================================
-      # 3. Initialize Ubuntu
+      # 3. Initialize Ubuntu 24.04
       # ==========================================================
-      - name: 3. Initialize Ubuntu
+      - name: 3. Initialize Ubuntu 24.04
         shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
 
-          wsl.exe -d Ubuntu-24.04 -- bash -lc "
-            set -e
+          Write-Host "=========================================="
+          Write-Host "Initializing Ubuntu 24.04"
+          Write-Host "=========================================="
 
-            echo '=========================================='
-            echo 'Ubuntu information'
-            echo '=========================================='
-
-            cat /etc/os-release
-
-            echo ''
-            echo 'Kernel:'
-            uname -a
-          "
-
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "set -e; echo 'Ubuntu information'; cat /etc/os-release; echo 'Kernel:'; uname -a; echo 'WSL distribution:'; wsl.exe --list --verbose"
       # ==========================================================
       # 4. Install Docker Engine inside WSL
       # ==========================================================
