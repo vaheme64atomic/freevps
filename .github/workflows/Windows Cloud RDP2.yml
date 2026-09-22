@@ -368,47 +368,50 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
       
-          Write-Host "=== Installing Docker Engine inside Ubuntu ===" -ForegroundColor Cyan
+          Write-Host "==========================================" -ForegroundColor Cyan
+          Write-Host " Installing Docker Engine inside Ubuntu" -ForegroundColor Cyan
+          Write-Host "==========================================" -ForegroundColor Cyan
       
-          # Directly test Ubuntu instead of parsing `wsl --list` output.
-          wsl.exe -d Ubuntu -- echo "Ubuntu is available"
+          # Verify Ubuntu can actually execute commands
+          wsl.exe -d Ubuntu -- bash -c "echo Ubuntu is working"
       
           if ($LASTEXITCODE -ne 0) {
-              throw "Ubuntu exists but cannot be started."
+              throw "Ubuntu cannot be started."
           }
       
-          Write-Host "Ubuntu is available. Installing Docker Engine..."
-      
+          # Install Docker inside Ubuntu
           wsl.exe -d Ubuntu -- bash -c @'
           set -e
       
-          echo "=== Updating Ubuntu ==="
+          echo "=== Ubuntu information ==="
+          cat /etc/os-release
+      
+          echo "=== Updating package lists ==="
           sudo apt-get update
       
-          echo "=== Installing prerequisites ==="
-          sudo apt-get install -y \
-            ca-certificates \
-            curl \
-            gnupg
+          echo "=== Installing Docker prerequisites ==="
+          sudo apt-get install -y ca-certificates curl gnupg
       
-          echo "=== Adding Docker GPG key ==="
+          echo "=== Creating Docker keyring ==="
           sudo install -m 0755 -d /etc/apt/keyrings
       
+          echo "=== Downloading Docker GPG key ==="
           sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
             -o /etc/apt/keyrings/docker.asc
       
           sudo chmod a+r /etc/apt/keyrings/docker.asc
       
-          echo "=== Adding Docker repository ==="
+          echo "=== Configuring Docker repository ==="
       
           . /etc/os-release
       
           echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu ${VERSION_CODENAME} stable" \
             | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
       
-          echo "=== Installing Docker Engine ==="
-      
+          echo "=== Updating package lists with Docker repository ==="
           sudo apt-get update
+      
+          echo "=== Installing Docker Engine ==="
       
           sudo apt-get install -y \
             docker-ce \
@@ -417,23 +420,23 @@ jobs:
             docker-buildx-plugin \
             docker-compose-plugin
       
-          echo "=== Starting Docker ==="
+          echo "=== Docker packages installed ==="
       
+          echo "=== Starting Docker daemon ==="
           sudo service docker start
       
-          echo "=== Adding current user to docker group ==="
-      
-          sudo usermod -aG docker $USER
-      
           echo "=== Docker version ==="
-      
-          sudo docker version
+          sudo docker --version
       
           echo "=== Docker Compose version ==="
-      
           sudo docker compose version
       
-          echo "=== Docker Engine installation completed ==="
+          echo "=== Testing Docker ==="
+          sudo docker run --rm hello-world
+      
+          echo "=========================================="
+          echo " Docker Engine installation SUCCESSFUL"
+          echo "=========================================="
           '@
       
           if ($LASTEXITCODE -ne 0) {
@@ -441,11 +444,10 @@ jobs:
           }
       
           Write-Host ""
-          Write-Host "======================================"
-          Write-Host " Docker Engine installed in Ubuntu"
-          Write-Host " Docker Desktop NOT installed"
-          Write-Host " Docker Compose plugin installed"
-          Write-Host "======================================"
+          Write-Host "==========================================" -ForegroundColor Green
+          Write-Host " Docker Engine + Compose READY" -ForegroundColor Green
+          Write-Host " Docker Desktop was NOT installed" -ForegroundColor Green
+          Write-Host "==========================================" -ForegroundColor Green
       # ============================================================
       # 13. VERIFY DOCKER
       # ============================================================
