@@ -179,24 +179,62 @@ jobs:
           Write-Host ""
           Write-Host "Checking Ubuntu identity..."
 
-          $identity = wsl.exe -d Ubuntu-24.04 -- bash -lc "printf 'ID='; . /etc/os-release; printf '%s\n' `$ID; printf 'VERSION_ID='; printf '%s\n' `$VERSION_ID; printf 'CODENAME='; printf '%s\n' `$VERSION_CODENAME" 2>&1 | Out-String
+          $idResult = wsl.exe -d Ubuntu-24.04 -- bash -lc "grep '^ID=' /etc/os-release" 2>&1 | Out-String
 
-          Write-Host $identity
+          Write-Host $idResult
 
           if ($LASTEXITCODE -ne 0) {
-              throw "Ubuntu identity check failed."
+              throw "Ubuntu ID check failed."
           }
 
-          if ($identity -notmatch "ID=ubuntu") {
+          if ($idResult -notmatch "ID=ubuntu") {
               throw "The WSL distribution is not Ubuntu."
           }
 
-          if ($identity -notmatch "VERSION_ID=24\.04") {
+          $versionResult = wsl.exe -d Ubuntu-24.04 -- bash -lc "grep '^VERSION_ID=' /etc/os-release" 2>&1 | Out-String
+
+          Write-Host $versionResult
+
+          if ($LASTEXITCODE -ne 0) {
+              throw "Ubuntu version check failed."
+          }
+
+          if ($versionResult -notmatch 'VERSION_ID="24\.04"') {
               throw "Ubuntu version is not 24.04."
+          }
+
+          $codenameResult = wsl.exe -d Ubuntu-24.04 -- bash -lc "grep '^VERSION_CODENAME=' /etc/os-release" 2>&1 | Out-String
+
+          Write-Host $codenameResult
+
+          if ($LASTEXITCODE -ne 0) {
+              throw "Ubuntu codename check failed."
+          }
+
+          if ($codenameResult -notmatch "VERSION_CODENAME=noble") {
+              throw "Ubuntu codename is not noble."
           }
 
           Write-Host ""
           Write-Host "Ubuntu 24.04 identity verified."
+
+          Write-Host ""
+          Write-Host "Testing package manager..."
+
+          $aptResult = wsl.exe -d Ubuntu-24.04 -- bash -lc "command -v apt && apt --version" 2>&1 | Out-String
+
+          Write-Host $aptResult
+
+          if ($LASTEXITCODE -ne 0) {
+              throw "APT is not available."
+          }
+
+          if ($aptResult -notmatch "apt") {
+              throw "APT verification failed."
+          }
+
+          Write-Host ""
+          Write-Host "APT verified."
 
           Write-Host ""
           Write-Host "WSL distributions:"
@@ -204,7 +242,7 @@ jobs:
 
           Write-Host ""
           Write-Host "=========================================="
-          Write-Host "UBUNTU INITIALIZATION VERIFIED"
+          Write-Host "UBUNTU 24.04 INITIALIZATION VERIFIED"
           Write-Host "=========================================="
 
       # ============================================================
