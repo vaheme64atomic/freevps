@@ -52,61 +52,87 @@ jobs:
           Write-Host ""
           Write-Host "WSL version:"
           wsl.exe --version
-
-      # ============================================================
-      # 3. INSTALL UBUNTU
-      # ============================================================
-      - name: 03 - Install Ubuntu 24.04
-        shell: powershell
-        run: |
           $ErrorActionPreference = "Stop"
-
+          
           Write-Host "=========================================="
           Write-Host "INSTALLING UBUNTU 24.04"
           Write-Host "=========================================="
-
-          $existing = wsl.exe --list --quiet 2>$null
-
-          if ($existing -match "Ubuntu-24\.04") {
+          
+          $ubuntuName = "Ubuntu-24.04"
+          
+          Write-Host ""
+          Write-Host "Checking existing WSL distributions..."
+          
+          $wslList = wsl.exe --list --verbose 2>&1 | Out-String
+          
+          Write-Host $wslList
+          
+          if ($wslList -match "Ubuntu-24\.04") {
+          
+              Write-Host ""
               Write-Host "Ubuntu-24.04 already exists."
+          
           }
           else {
+          
+              Write-Host ""
               Write-Host "Installing Ubuntu-24.04..."
-
+          
               wsl.exe --install -d Ubuntu-24.04 --no-launch
-
+          
               if ($LASTEXITCODE -ne 0) {
                   throw "Ubuntu installation command failed."
               }
           }
-
+          
           Write-Host ""
           Write-Host "Waiting for Ubuntu registration..."
-
+          
           $found = $false
-
+          
           for ($i = 1; $i -le 30; $i++) {
-
-              $distros = wsl.exe --list --quiet 2>$null
-
-              if ($distros -match "Ubuntu-24\.04") {
+          
+              Write-Host "Check $i/30..."
+          
+              $wslList = wsl.exe --list --verbose 2>&1 | Out-String
+          
+              Write-Host $wslList
+          
+              if ($wslList -match "Ubuntu-24\.04") {
                   $found = $true
                   break
               }
-
+          
               Start-Sleep -Seconds 2
           }
-
+          
           if (-not $found) {
+          
               Write-Host ""
-              Write-Host "Installed distributions:"
+              Write-Host "Final WSL state:"
               wsl.exe --list --verbose
-
-              throw "Ubuntu-24.04 was not registered in WSL."
+          
+              throw "Ubuntu-24.04 was not detected after installation."
           }
-
+          
           Write-Host ""
-          Write-Host "Ubuntu-24.04 registered successfully."
+          Write-Host "Ubuntu-24.04 detected successfully."
+          
+          Write-Host ""
+          Write-Host "Testing Ubuntu launch..."
+          
+          wsl.exe -d Ubuntu-24.04 -- bash -lc "echo 'Ubuntu launch test OK'"
+          
+          if ($LASTEXITCODE -ne 0) {
+              throw "Ubuntu-24.04 exists but could not be launched."
+          }
+          
+          Write-Host ""
+          Write-Host "=========================================="
+          Write-Host "UBUNTU 24.04 INSTALLATION VERIFIED"
+          Write-Host "=========================================="
+          
+          wsl.exe --list --verbose
 
       # ============================================================
       # 4. INITIALIZE UBUNTU
