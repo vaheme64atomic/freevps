@@ -784,7 +784,8 @@ jobs:
       # ============================================================
       # 18. FINAL SYSTEM VERIFICATION
       # ============================================================
-      - name: 18 - Final System Verification
+
+      - name: "18. Final System Verification"
         shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
@@ -793,33 +794,142 @@ jobs:
           Write-Host "FINAL SYSTEM VERIFICATION"
           Write-Host "=========================================="
 
+          # --------------------------------------------------
+          # WSL
+          # --------------------------------------------------
+
           Write-Host ""
           Write-Host "WSL:"
           wsl.exe --list --verbose
 
+          $ubuntuTest = wsl.exe -d Ubuntu-24.04 -- bash -lc "echo FINAL_WSL_OK" 2>&1 | Out-String
+
+          Write-Host $ubuntuTest
+
+          if ($ubuntuTest -notmatch "FINAL_WSL_OK") {
+              throw "Final WSL execution verification failed."
+          }
+
+          Write-Host "WSL execution: PASS"
+
+          # --------------------------------------------------
+          # DOCKER
+          # --------------------------------------------------
+
           Write-Host ""
           Write-Host "Docker:"
-          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo docker info --format 'Server={{.ServerVersion}} Containers={{.Containers}} Images={{.Images}}'"
+
+          $dockerInfo = wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo docker info --format 'Server={{.ServerVersion}} Containers={{.Containers}} Images={{.Images}}'" 2>&1 | Out-String
+
+          Write-Host $dockerInfo
+
+          if ($dockerInfo -notmatch "Server=29\.8\.1") {
+              throw "Docker Engine verification failed."
+          }
+
+          Write-Host "Docker Engine: PASS"
+
+          # --------------------------------------------------
+          # YOUTRACK CONTAINER
+          # --------------------------------------------------
 
           Write-Host ""
           Write-Host "YouTrack:"
-          wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo docker ps --filter name=youtrack --format 'NAME={{.Names}} STATUS={{.Status}} PORTS={{.Ports}}'"
+
+          $youtrackStatus = wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo docker inspect -f 'STATUS={{.State.Status}} HEALTH={{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' youtrack" 2>&1 | Out-String
+
+          Write-Host $youtrackStatus
+
+          if ($youtrackStatus -notmatch "STATUS=running") {
+              throw "YouTrack container is not running."
+          }
+
+          Write-Host "YouTrack container: RUNNING"
+
+          # --------------------------------------------------
+          # YOUTRACK PORT
+          # --------------------------------------------------
 
           Write-Host ""
-          Write-Host "YouTrack HTTP:"
-          wsl.exe -d Ubuntu-24.04 -- bash -lc "curl -s -o /dev/null -w 'HTTP=%{http_code}\n' http://127.0.0.1:8080/hub/auth/login"
+          Write-Host "YouTrack port:"
+
+          $portCheck = wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo docker port youtrack 8080" 2>&1 | Out-String
+
+          Write-Host $portCheck
+
+          if ($portCheck -notmatch "8080") {
+              throw "YouTrack port 8080 is not mapped."
+          }
+
+          Write-Host "YouTrack port mapping: PASS"
+
+          # --------------------------------------------------
+          # YOUTRACK HTTP READINESS
+          # --------------------------------------------------
+
+          Write-Host ""
+          Write-Host "Waiting for YouTrack HTTP readiness..."
+
+          $youtrackReady = $false
+          $lastHttp = ""
+
+          for ($i = 1; $i -le 60; $i++) {
+
+              $httpResult = wsl.exe -d Ubuntu-24.04 -- bash -lc "curl -s -o /dev/null -w 'HTTP=%{http_code}' http://127.0.0.1:8080/hub/auth/login" 2>&1 | Out-String
+
+              $httpResult = $httpResult.Trim()
+
+              $lastHttp = $httpResult
+
+              Write-Host "HTTP check $i/60 : $httpResult"
+
+              if ($httpResult -match "HTTP=(200|301|302|303|307|308)") {
+                  $youtrackReady = $true
+                  break
+              }
+
+              Start-Sleep -Seconds 5
+          }
+
+          if (-not $youtrackReady) {
+
+              Write-Host ""
+              Write-Host "Last HTTP result:"
+              Write-Host $lastHttp
+
+              Write-Host ""
+              Write-Host "YouTrack container logs:"
+              wsl.exe -d Ubuntu-24.04 -- bash -lc "sudo docker logs --tail 100 youtrack"
+
+              throw "YouTrack HTTP endpoint did not become ready."
+          }
+
+          Write-Host ""
+          Write-Host "YouTrack HTTP: READY"
+
+          # --------------------------------------------------
+          # RDP
+          # --------------------------------------------------
 
           Write-Host ""
           Write-Host "RDP:"
-          Test-NetConnection `
-            -ComputerName "127.0.0.1" `
-            -Port 3389 `
-            -WarningAction SilentlyContinue |
-            Select-Object ComputerName, RemotePort, TcpTestSucceeded
+
+          $rdp = Test-NetConnection 127.0.0.1 -Port 3389 -WarningAction SilentlyContinue
+
+          if (-not $rdp.TcpTestSucceeded) {
+              throw "RDP port 3389 is not reachable."
+          }
+
+          Write-Host ""
+          Write-Host "RDP port 3389: OPEN"
+
+          # --------------------------------------------------
+          # FINAL RESULT
+          # --------------------------------------------------
 
           Write-Host ""
           Write-Host "=========================================="
-          Write-Host "ALL AUTOMATED VERIFICATIONS PASSED"
+          Write-Host "ALL FINAL SYSTEM VERIFICATIONS PASSED"
           Write-Host "=========================================="
 
       # ============================================================
