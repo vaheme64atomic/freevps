@@ -773,7 +773,8 @@ jobs:
           Write-Host ""
           Write-Host "Username:"
           Write-Host "NvDAdmin"
-
+          Write-Host "  Password     : P@ssw0rd1qazXSW@#" -ForegroundColor Yellow
+          
           Write-Host ""
           Write-Host "YouTrack:"
           Write-Host "http://localhost:8080"
